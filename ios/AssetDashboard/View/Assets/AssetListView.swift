@@ -13,6 +13,8 @@ struct AssetListView: View {
                 if vm.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = vm.error, vm.assets.isEmpty {
+                    errorState(error)
                 } else if vm.assets.isEmpty {
                     emptyState
                 } else {
@@ -71,6 +73,27 @@ struct AssetListView: View {
     }
 
     // MARK: - Subviews
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text("加载失败")
+                .font(.subheadline)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await vm.load(isLoggedIn: authVM.isLoggedIn) }
+            } label: {
+                Label("重试", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
     private var emptyState: some View {
         VStack(spacing: 12) {

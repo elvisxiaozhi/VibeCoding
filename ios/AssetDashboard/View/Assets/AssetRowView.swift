@@ -18,29 +18,19 @@ struct AssetRowView: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 let mv = Calc.marketValue(asset)
-                Text("¥" + mv.formatted(.number.precision(.fractionLength(2)).grouping(.automatic)))
+                Text(Fmt.cny(mv))
                     .font(.subheadline.monospacedDigit())
 
                 let pnl = Calc.pnlValue(asset)
                 let rate = Calc.pnlRate(asset)
                 HStack(spacing: 4) {
-                    Text(signedCNY(pnl))
-                    Text(formatPercent(rate))
+                    Text(Fmt.signedCNY(pnl))
+                    Text(Fmt.percent(rate))
                 }
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(pnl >= 0 ? .green : .red)
+                .foregroundStyle(Fmt.pnlColor(pnl))
             }
         }
         .padding(.vertical, 2)
-    }
-
-    private func signedCNY(_ n: Double) -> String {
-        let prefix = n >= 0 ? "+" : ""
-        return prefix + "¥" + n.formatted(.number.precision(.fractionLength(2)).grouping(.automatic))
-    }
-
-    private func formatPercent(_ n: Double) -> String {
-        let prefix = n >= 0 ? "+" : ""
-        return prefix + (n * 100).formatted(.number.precision(.fractionLength(2))) + "%"
     }
 }

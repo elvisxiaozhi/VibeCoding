@@ -13,6 +13,7 @@
 		1C472225FF926EDDBFDDBB7F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F9E6BF07823CCF93735E4432 /* Assets.xcassets */; };
 		1CE1A5B6DB700CFFA77085EB /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904B05DAE981ABFA1988BDBE /* AuthViewModel.swift */; };
 		23D581BF525A23AD65B02BAD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88211117CCFEBA6911C120C7 /* APIClient.swift */; };
+		393181205963CFF1599B1537 /* Formatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF13101DBD9D22A0903BFBA /* Formatter.swift */; };
 		57B6E0BDD82D6D122AC633E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BA89ACE9776A829A6429156 /* ContentView.swift */; };
 		584A95F23162B9D6D4A5A2DF /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92E33D84246DA0C6DEBF0E1 /* KeychainHelper.swift */; };
 		5D18479DDBCE320576491EAC /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1925E7FA28FC0FE44242BCA8 /* SettingsView.swift */; };
@@ -32,6 +33,7 @@
 /* Begin PBXFileReference section */
 		02327179E5AB4BD4AA67CC9F /* StatCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCardView.swift; sourceTree = "<group>"; };
 		1925E7FA28FC0FE44242BCA8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		1AF13101DBD9D22A0903BFBA /* Formatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatter.swift; sourceTree = "<group>"; };
 		25ECC33F978A0FD2617F4E58 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		26932695CE203506AFCC7D01 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		2BA89ACE9776A829A6429156 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				5FAD439870862C0FBE64EFF3 /* Calc.swift */,
+				1AF13101DBD9D22A0903BFBA /* Formatter.swift */,
 			);
 			path = Util;
 			sourceTree = "<group>";
@@ -254,6 +257,7 @@
 				57B6E0BDD82D6D122AC633E4 /* ContentView.swift in Sources */,
 				DC98A491E3E9AFF39FF0741D /* DashboardView.swift in Sources */,
 				C3711A14A14CDC3404570D7C /* DashboardViewModel.swift in Sources */,
+				393181205963CFF1599B1537 /* Formatter.swift in Sources */,
 				584A95F23162B9D6D4A5A2DF /* KeychainHelper.swift in Sources */,
 				D77074458A73863139F501F3 /* LoginView.swift in Sources */,
 				CD48473F022B6B6D5757C8FD /* MockData.swift in Sources */,

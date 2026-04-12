@@ -40,10 +40,10 @@ struct CategoryPieChart: View {
                             Text(item.category.label)
                                 .font(.caption)
                             Spacer()
-                            Text(formatPercent(item.value / total))
+                            Text(Fmt.percentPlain(item.value / total))
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
-                            Text(formatCNY(item.value))
+                            Text(Fmt.cnyRounded(item.value))
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
@@ -63,13 +63,5 @@ struct CategoryPieChart: View {
         case .crypto: return .orange
         case .cash:   return .green
         }
-    }
-
-    private func formatCNY(_ n: Double) -> String {
-        "¥" + n.formatted(.number.precision(.fractionLength(0)))
-    }
-
-    private func formatPercent(_ n: Double) -> String {
-        (n * 100).formatted(.number.precision(.fractionLength(1))) + "%"
     }
 }

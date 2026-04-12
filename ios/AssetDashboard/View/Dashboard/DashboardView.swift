@@ -16,6 +16,8 @@ struct DashboardView: View {
                     if vm.isLoading {
                         ProgressView()
                             .frame(maxWidth: .infinity, minHeight: 200)
+                    } else if let error = vm.error {
+                        errorState(error)
                     } else if vm.assets.isEmpty {
                         emptyState
                     } else {
@@ -52,6 +54,27 @@ struct DashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text("加载失败")
+                .font(.subheadline)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Task { await vm.load(isLoggedIn: authVM.isLoggedIn) }
+            } label: {
+                Label("重试", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, minHeight: 200)
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "wallet.bifold")
@@ -83,19 +106,19 @@ struct DashboardView: View {
         HStack(spacing: 12) {
             StatCardView(
                 title: "总资产",
-                value: formatCNY(vm.totalValue),
+                value: Fmt.cny(vm.totalValue),
                 icon: "wallet.bifold"
             )
             StatCardView(
                 title: "浮动盈亏",
-                value: signedCNY(vm.totalPnL),
-                subtitle: formatPercent(vm.pnlRate),
+                value: Fmt.signedCNY(vm.totalPnL),
+                subtitle: Fmt.percent(vm.pnlRate),
                 icon: vm.totalPnL >= 0 ? "arrow.up.right" : "arrow.down.right",
-                valueColor: pnlColor(vm.totalPnL)
+                valueColor: Fmt.pnlColor(vm.totalPnL)
             )
             StatCardView(
                 title: "投入本金",
-                value: formatCNY(vm.totalCost),
+                value: Fmt.cny(vm.totalCost),
                 icon: "dollarsign.circle"
             )
         }
@@ -120,12 +143,12 @@ struct DashboardView: View {
                     VStack(alignment: .trailing, spacing: 2) {
                         let pnl = Calc.pnlValue(asset)
                         let rate = Calc.pnlRate(asset)
-                        Text(signedCNY(pnl))
+                        Text(Fmt.signedCNY(pnl))
                             .font(.subheadline.monospacedDigit())
-                            .foregroundStyle(pnlColor(pnl))
-                        Text(formatPercent(rate))
+                            .foregroundStyle(Fmt.pnlColor(pnl))
+                        Text(Fmt.percent(rate))
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(pnlColor(pnl))
+                            .foregroundStyle(Fmt.pnlColor(pnl))
                     }
                 }
             }
@@ -135,23 +158,4 @@ struct DashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Formatting
-
-    private func formatCNY(_ n: Double) -> String {
-        "¥" + n.formatted(.number.precision(.fractionLength(2)).grouping(.automatic))
-    }
-
-    private func signedCNY(_ n: Double) -> String {
-        let prefix = n >= 0 ? "+" : ""
-        return prefix + formatCNY(n)
-    }
-
-    private func formatPercent(_ n: Double) -> String {
-        let prefix = n >= 0 ? "+" : ""
-        return prefix + (n * 100).formatted(.number.precision(.fractionLength(2))) + "%"
-    }
-
-    private func pnlColor(_ n: Double) -> Color {
-        n >= 0 ? .green : .red
-    }
 }

@@ -30,6 +30,17 @@ actor APIClient {
         try await get("/api/me")
     }
 
+    // MARK: - Health
+
+    func healthCheck() async throws -> Bool {
+        var request = URLRequest(url: URL(string: baseURL + "/api/health")!)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 5
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { return false }
+        return (200...299).contains(http.statusCode)
+    }
+
     // MARK: - Assets
 
     func fetchAssets() async throws -> [Asset] {
