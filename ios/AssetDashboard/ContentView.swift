@@ -12,7 +12,7 @@ struct ContentView: View {
             } else {
                 TabView {
                     Tab("总览", systemImage: "chart.pie") {
-                        Text("看板（Step 15 实现）")
+                        DashboardView()
                     }
                     Tab("资产", systemImage: "list.bullet") {
                         Text("资产列表（Step 16 实现）")
