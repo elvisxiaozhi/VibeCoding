@@ -1,5 +1,6 @@
 import {
   DollarSign,
+  Eye,
   Loader2,
   TrendingDown,
   TrendingUp,
@@ -20,9 +21,13 @@ function formatPercent(n: number): string {
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`
 }
 
-export function Dashboard() {
+interface DashboardProps {
+  isLoggedIn: boolean
+}
+
+export function Dashboard({ isLoggedIn }: DashboardProps) {
   const { assets, loading, totalValue, totalCost, totalPnL, categoryBreakdown } =
-    useAssets()
+    useAssets(isLoggedIn)
 
   const pnlPercent = totalCost === 0 ? 0 : totalPnL / totalCost
   const pnlVariant = totalPnL >= 0 ? 'profit' : 'loss'
@@ -56,6 +61,14 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* 游客模式 banner */}
+      {!isLoggedIn && (
+        <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-400">
+          <Eye className="h-4 w-4 shrink-0" />
+          <span>当前为演示模式，登录后管理您的资产</span>
+        </div>
+      )}
+
       {/* 统计卡片 */}
       <div className="grid grid-cols-3 gap-6">
         <StatCard

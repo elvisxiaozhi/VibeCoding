@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { Loader2 } from 'lucide-react'
+
 import { AssetTable } from '@/components/assets/AssetTable'
 import { Dashboard } from '@/components/dashboard/Dashboard'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -11,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { useAuth } from '@/hooks/useAuth'
 
 function PagePlaceholder({ page }: { page: PageKey }) {
   return (
@@ -24,12 +27,12 @@ function PagePlaceholder({ page }: { page: PageKey }) {
   )
 }
 
-function PageContent({ page }: { page: PageKey }) {
+function PageContent({ page, isLoggedIn }: { page: PageKey; isLoggedIn: boolean }) {
   switch (page) {
     case 'overview':
-      return <Dashboard />
+      return <Dashboard isLoggedIn={isLoggedIn} />
     case 'assets':
-      return <AssetTable />
+      return <AssetTable isLoggedIn={isLoggedIn} />
     case 'settings':
       return <PagePlaceholder page={page} />
   }
@@ -37,10 +40,26 @@ function PageContent({ page }: { page: PageKey }) {
 
 function App() {
   const [page, setPage] = useState<PageKey>('overview')
+  const { user, loading, isLoggedIn, login, logout } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
-    <AppLayout active={page} onChange={setPage} title={NAV_LABELS[page]}>
-      <PageContent page={page} />
+    <AppLayout
+      active={page}
+      onChange={setPage}
+      title={NAV_LABELS[page]}
+      user={user}
+      onLogin={login}
+      onLogout={logout}
+    >
+      <PageContent page={page} isLoggedIn={isLoggedIn} />
     </AppLayout>
   )
 }

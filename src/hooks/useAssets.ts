@@ -7,18 +7,24 @@ import {
   totalPnLValue,
 } from '@/lib/calc'
 import type { Asset } from '@/lib/types'
+import { MOCK_ASSETS } from '@/data/mock'
 
 export type AssetDraft = Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>
 export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 
-export function useAssets() {
+export function useAssets(isLoggedIn: boolean) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchAssets = useCallback(async () => {
+    if (!isLoggedIn) {
+      setAssets(MOCK_ASSETS)
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
-      const res = await fetch('/api/assets')
+      const res = await fetch('/api/assets', { credentials: 'include' })
       const data = (await res.json()) as Asset[]
       setAssets(data)
     } catch (err) {
@@ -26,19 +32,21 @@ export function useAssets() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isLoggedIn])
 
-  // 初始加载
+  // 初始加载 + 登录态切换时重新加载
   useEffect(() => {
     fetchAssets()
   }, [fetchAssets])
 
   const addAsset = useCallback(
     async (draft: AssetDraft) => {
+      if (!isLoggedIn) return
       try {
         const res = await fetch('/api/assets', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(draft),
         })
         if (!res.ok) {
@@ -51,11 +59,12 @@ export function useAssets() {
         console.error('addAsset failed:', err)
       }
     },
-    [fetchAssets],
+    [isLoggedIn, fetchAssets],
   )
 
   const updateAsset = useCallback(
     async (id: string, patch: AssetPatch) => {
+      if (!isLoggedIn) return
       // 合并 patch 到当前状态，发送完整对象给 PUT
       const current = assets.find((a) => a.id === id)
       if (!current) return
@@ -73,6 +82,7 @@ export function useAssets() {
         const res = await fetch(`/api/assets/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(merged),
         })
         if (!res.ok) {
@@ -85,13 +95,17 @@ export function useAssets() {
         console.error('updateAsset failed:', err)
       }
     },
-    [assets, fetchAssets],
+    [isLoggedIn, assets, fetchAssets],
   )
 
   const deleteAsset = useCallback(
     async (id: string) => {
+      if (!isLoggedIn) return
       try {
-        const res = await fetch(`/api/assets/${id}`, { method: 'DELETE' })
+        const res = await fetch(`/api/assets/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
         if (!res.ok) {
           const body = (await res.json()) as { error: string }
           console.error('deleteAsset failed:', body.error)
@@ -102,7 +116,7 @@ export function useAssets() {
         console.error('deleteAsset failed:', err)
       }
     },
-    [fetchAssets],
+    [isLoggedIn, fetchAssets],
   )
 
   const totalValue = useMemo(() => totalMarketValue(assets), [assets])

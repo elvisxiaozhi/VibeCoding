@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Eye,
   Loader2,
   Pencil,
   Plus,
@@ -108,8 +109,12 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   )
 }
 
-export function AssetTable() {
-  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets()
+interface AssetTableProps {
+  isLoggedIn: boolean
+}
+
+export function AssetTable({ isLoggedIn }: AssetTableProps) {
+  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn)
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -199,30 +204,43 @@ export function AssetTable() {
             点击下方按钮添加您的第一笔资产
           </p>
         </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-2 h-4 w-4" />
-          新增资产
-        </Button>
-
-        <AssetForm
-          open={formOpen}
-          onOpenChange={setFormOpen}
-          asset={editingAsset}
-          onSubmit={handleFormSubmit}
-        />
+        {isLoggedIn && (
+          <>
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              新增资产
+            </Button>
+            <AssetForm
+              open={formOpen}
+              onOpenChange={setFormOpen}
+              asset={editingAsset}
+              onSubmit={handleFormSubmit}
+            />
+          </>
+        )}
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
+      {/* 游客模式 banner */}
+      {!isLoggedIn && (
+        <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-400">
+          <Eye className="h-4 w-4 shrink-0" />
+          <span>当前为演示模式，登录后管理您的资产</span>
+        </div>
+      )}
+
       {/* 顶部操作栏 */}
-      <div className="flex justify-end">
-        <Button onClick={handleAdd}>
-          <Plus className="mr-2 h-4 w-4" />
-          新增资产
-        </Button>
-      </div>
+      {isLoggedIn && (
+        <div className="flex justify-end">
+          <Button onClick={handleAdd}>
+            <Plus className="mr-2 h-4 w-4" />
+            新增资产
+          </Button>
+        </div>
+      )}
 
       {/* 表格 */}
       <div className="rounded-xl border border-border/50 bg-card shadow">
@@ -239,7 +257,7 @@ export function AssetTable() {
                   <SortIcon active={sortKey === col.key} dir={sortDir} />
                 </TableHead>
               ))}
-              <TableHead className="text-right">操作</TableHead>
+              {isLoggedIn && <TableHead className="text-right">操作</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -279,26 +297,28 @@ export function AssetTable() {
                   <TableCell className={`text-right font-mono ${pnlColor}`}>
                     {formatPercent(rate)}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleEdit(asset)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
-                        onClick={() => handleDeleteClick(asset)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {isLoggedIn && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(asset)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
+                          onClick={() => handleDeleteClick(asset)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               )
             })}
@@ -307,35 +327,39 @@ export function AssetTable() {
       </div>
 
       {/* 新增/编辑表单弹窗 */}
-      <AssetForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        asset={editingAsset}
-        onSubmit={handleFormSubmit}
-      />
+      {isLoggedIn && (
+        <AssetForm
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          asset={editingAsset}
+          onSubmit={handleFormSubmit}
+        />
+      )}
 
       {/* 删除确认弹窗 */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">
-              确认删除
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              确定要删除资产「{deletingAsset?.symbol}」吗？此操作无法撤销。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-[#ef4444] text-white hover:bg-[#dc2626]"
-              onClick={handleDeleteConfirm}
-            >
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {isLoggedIn && (
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white">
+                确认删除
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                确定要删除资产「{deletingAsset?.symbol}」吗？此操作无法撤销。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                onClick={handleDeleteConfirm}
+              >
+                删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   )
 }
