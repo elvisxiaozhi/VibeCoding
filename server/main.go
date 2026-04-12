@@ -11,6 +11,8 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 
+	"github.com/theodore/vibecoding-server/internal/handler"
+	"github.com/theodore/vibecoding-server/internal/middleware"
 	"github.com/theodore/vibecoding-server/internal/store"
 )
 
@@ -48,9 +50,11 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	// Step 5 将在此处注册 CRUD 路由
+	assetsHandler := &handler.Assets{Store: s}
+	assetsHandler.RegisterRoutes(mux)
 
+	// 5. 启动 HTTP server（包裹 CORS 中间件）
 	addr := ":8080"
 	fmt.Printf("server listening on %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	log.Fatal(http.ListenAndServe(addr, middleware.CORS(mux)))
 }
