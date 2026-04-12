@@ -11,12 +11,13 @@ GOOS=linux GOARCH=amd64 GOPROXY=https://proxy.golang.org,direct go build -o asse
 cd ..
 
 echo "=== 3. 上传文件到服务器 ==="
+ssh vps "sudo systemctl stop asset-dashboard; sudo chown -R \$(whoami) /opt/asset-dashboard"
 scp -r dist/ vps:/opt/asset-dashboard/
 scp server/asset-dashboard vps:/opt/asset-dashboard/
 scp deploy/nginx.conf deploy/asset-dashboard.service deploy/setup-server.sh vps:/opt/asset-dashboard/deploy/
 
 echo "=== 4. 设置权限并重启服务 ==="
-ssh vps "chown -R www-data:www-data /opt/asset-dashboard && systemctl restart asset-dashboard"
+ssh vps "sudo chown -R www-data:www-data /opt/asset-dashboard && sudo systemctl restart asset-dashboard"
 
 echo ""
 echo "=== 部署完成 ==="
