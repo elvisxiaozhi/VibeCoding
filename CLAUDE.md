@@ -21,8 +21,8 @@
 
 ### Phase 3 — 前端功能完善（基于真实 API）
 - ✅ **Step 7 — 首页看板**（见 `docs/steps/step-7-report.md`）
-- ⏭️ **Step 8 — 资产列表页**（下一步）
-- ⏸️ Step 9 — 新增 / 编辑资产
+- ✅ **Step 8 — 资产列表页**（见 `docs/steps/step-8-report.md`）
+- ⏭️ **Step 9 — 新增 / 编辑资产**（下一步）
 - ⏸️ Step 10 — 删除确认 + 全局优化
 
 ## 红线（必须遵守）
