@@ -3,10 +3,53 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/theodore/vibecoding-server/internal/model"
 	"github.com/theodore/vibecoding-server/internal/store"
 )
+
+const (
+	defaultUsername = "admin"
+	defaultPassword = "admin123"
+)
+
+// seedUser 确保默认用户存在，返回其 ID
+func seedUser(s *store.Store) (string, error) {
+	// 已有用户则直接返回
+	n, err := s.UserCount()
+	if err != nil {
+		return "", fmt.Errorf("seed user count: %w", err)
+	}
+	if n > 0 {
+		id, err := s.FirstUserID()
+		if err != nil {
+			return "", fmt.Errorf("seed first user: %w", err)
+		}
+		log.Printf("seed: 跳过用户创建，已有 %d 个用户\n", n)
+		return id, nil
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("seed bcrypt: %w", err)
+	}
+
+	user := model.User{
+		ID:           uuid.NewString(),
+		Username:     defaultUsername,
+		PasswordHash: string(hash),
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := s.CreateUser(user); err != nil {
+		return "", fmt.Errorf("seed create user: %w", err)
+	}
+	log.Printf("seed: 已创建默认用户 %s（密码: %s）\n", defaultUsername, defaultPassword)
+	return user.ID, nil
+}
 
 // mockAssets 与前端 src/data/mock.ts 保持一致的 10 条示例数据
 var mockAssets = []model.Asset{
@@ -22,8 +65,19 @@ var mockAssets = []model.Asset{
 	{ID: "mock-cash-mmf", Symbol: "货币基金", Category: model.CategoryCash, CostBasis: 1, CurrentPrice: 1.0023, Quantity: 80000, Currency: "CNY", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
 }
 
-// seed 检查数据库是否为空，为空则插入 Mock 数据
+// seed 创建默认用户，填充 Mock 数据，归属孤儿资产
 func seed(s *store.Store) error {
+	userID, err := seedUser(s)
+	if err != nil {
+		return err
+	}
+
+	// 将迁移前已存在的无主资产归属到默认用户
+	if err := s.AssignOrphanAssets(userID); err != nil {
+		return fmt.Errorf("seed assign orphans: %w", err)
+	}
+
+	// 填充 Mock 数据
 	n, err := s.Count()
 	if err != nil {
 		return fmt.Errorf("seed count: %w", err)
@@ -33,6 +87,7 @@ func seed(s *store.Store) error {
 		return nil
 	}
 	for _, a := range mockAssets {
+		a.UserID = userID
 		if err := s.CreateAsset(a); err != nil {
 			return fmt.Errorf("seed insert %s: %w", a.ID, err)
 		}

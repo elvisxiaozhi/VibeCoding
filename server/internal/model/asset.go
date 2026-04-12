@@ -13,6 +13,7 @@ const (
 // Asset 单条资产记录，JSON tag 与前端 Asset interface 一一对应
 type Asset struct {
 	ID           string  `json:"id"`
+	UserID       string  `json:"-"`
 	Symbol       string  `json:"symbol"`
 	Category     string  `json:"category"`
 	CostBasis    float64 `json:"costBasis"`

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/theodore/vibecoding-server/internal/middleware"
 	"github.com/theodore/vibecoding-server/internal/model"
 	"github.com/theodore/vibecoding-server/internal/store"
 )
@@ -18,18 +19,20 @@ type Assets struct {
 	Store *store.Store
 }
 
-// RegisterRoutes 将 5 个 CRUD 路由注册到 mux
+// RegisterRoutes 将 5 个 CRUD 路由注册到 mux（需要认证）
 func (h *Assets) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/assets", h.list)
-	mux.HandleFunc("GET /api/assets/{id}", h.get)
-	mux.HandleFunc("POST /api/assets", h.create)
-	mux.HandleFunc("PUT /api/assets/{id}", h.update)
-	mux.HandleFunc("DELETE /api/assets/{id}", h.remove)
+	authMw := middleware.Auth(h.Store)
+	mux.Handle("GET /api/assets", authMw(http.HandlerFunc(h.list)))
+	mux.Handle("GET /api/assets/{id}", authMw(http.HandlerFunc(h.get)))
+	mux.Handle("POST /api/assets", authMw(http.HandlerFunc(h.create)))
+	mux.Handle("PUT /api/assets/{id}", authMw(http.HandlerFunc(h.update)))
+	mux.Handle("DELETE /api/assets/{id}", authMw(http.HandlerFunc(h.remove)))
 }
 
-// GET /api/assets — 返回全部资产列表
+// GET /api/assets — 返回当前用户全部资产列表
 func (h *Assets) list(w http.ResponseWriter, r *http.Request) {
-	assets, err := h.Store.ListAssets()
+	userID := middleware.UserIDFromContext(r.Context())
+	assets, err := h.Store.ListAssets(userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -44,7 +47,8 @@ func (h *Assets) list(w http.ResponseWriter, r *http.Request) {
 // GET /api/assets/{id} — 返回单条资产
 func (h *Assets) get(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	asset, err := h.Store.GetAsset(id)
+	userID := middleware.UserIDFromContext(r.Context())
+	asset, err := h.Store.GetAsset(id, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "asset not found")
@@ -68,6 +72,8 @@ type createRequest struct {
 
 // POST /api/assets — 新增资产
 func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+
 	var req createRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -81,6 +87,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	asset := model.Asset{
 		ID:           uuid.NewString(),
+		UserID:       userID,
 		Symbol:       req.Symbol,
 		Category:     req.Category,
 		CostBasis:    req.CostBasis,
@@ -114,9 +121,10 @@ type updateRequest struct {
 // PUT /api/assets/{id} — 更新资产
 func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	userID := middleware.UserIDFromContext(r.Context())
 
-	// 先确认资产存在
-	existing, err := h.Store.GetAsset(id)
+	// 先确认资产存在且属于当前用户
+	existing, err := h.Store.GetAsset(id, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "asset not found")
@@ -135,6 +143,7 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	asset := model.Asset{
 		ID:           id,
+		UserID:       userID,
 		Symbol:       req.Symbol,
 		Category:     req.Category,
 		CostBasis:    req.CostBasis,
@@ -158,7 +167,8 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 // DELETE /api/assets/{id} — 删除资产
 func (h *Assets) remove(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := h.Store.DeleteAsset(id); err != nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if err := h.Store.DeleteAsset(id, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "asset not found")
 			return

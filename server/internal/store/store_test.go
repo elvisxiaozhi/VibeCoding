@@ -9,6 +9,8 @@ import (
 	"github.com/theodore/vibecoding-server/internal/model"
 )
 
+const testUserID = "test-user-001"
+
 // 在内存数据库中建表，返回可用的 Store
 func setupTestStore(t *testing.T) *Store {
 	t.Helper()
@@ -18,6 +20,7 @@ func setupTestStore(t *testing.T) *Store {
 	}
 	_, err = db.Exec(`CREATE TABLE assets (
 		id            TEXT PRIMARY KEY,
+		user_id       TEXT NOT NULL DEFAULT '',
 		symbol        TEXT    NOT NULL,
 		category      TEXT    NOT NULL,
 		cost_basis    REAL    NOT NULL,
@@ -30,6 +33,23 @@ func setupTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = db.Exec(`CREATE TABLE users (
+		id            TEXT PRIMARY KEY,
+		username      TEXT NOT NULL UNIQUE,
+		password_hash TEXT NOT NULL,
+		created_at    TEXT NOT NULL
+	)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`CREATE TABLE sessions (
+		token      TEXT PRIMARY KEY,
+		user_id    TEXT NOT NULL,
+		expires_at TEXT NOT NULL
+	)`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { db.Close() })
 	return New(db)
 }
@@ -37,6 +57,7 @@ func setupTestStore(t *testing.T) *Store {
 func sampleAsset() model.Asset {
 	return model.Asset{
 		ID:           "test-001",
+		UserID:       testUserID,
 		Symbol:       "AAPL",
 		Category:     model.CategoryStock,
 		CostBasis:    150.0,
@@ -56,7 +77,7 @@ func TestCreateAndGet(t *testing.T) {
 		t.Fatalf("CreateAsset: %v", err)
 	}
 
-	got, err := s.GetAsset(a.ID)
+	got, err := s.GetAsset(a.ID, testUserID)
 	if err != nil {
 		t.Fatalf("GetAsset: %v", err)
 	}
@@ -65,11 +86,22 @@ func TestCreateAndGet(t *testing.T) {
 	}
 }
 
+func TestGetAssetWrongUser(t *testing.T) {
+	s := setupTestStore(t)
+	a := sampleAsset()
+	s.CreateAsset(a)
+
+	_, err := s.GetAsset(a.ID, "other-user")
+	if err == nil {
+		t.Error("expected error getting asset with wrong user, got nil")
+	}
+}
+
 func TestListAssets(t *testing.T) {
 	s := setupTestStore(t)
 
 	// 空表
-	list, err := s.ListAssets()
+	list, err := s.ListAssets(testUserID)
 	if err != nil {
 		t.Fatalf("ListAssets empty: %v", err)
 	}
@@ -87,12 +119,21 @@ func TestListAssets(t *testing.T) {
 	s.CreateAsset(a1)
 	s.CreateAsset(a2)
 
-	list, err = s.ListAssets()
+	list, err = s.ListAssets(testUserID)
 	if err != nil {
 		t.Fatalf("ListAssets: %v", err)
 	}
 	if len(list) != 2 {
 		t.Errorf("expected 2 assets, got %d", len(list))
+	}
+
+	// 其他用户看不到
+	list, err = s.ListAssets("other-user")
+	if err != nil {
+		t.Fatalf("ListAssets other: %v", err)
+	}
+	if len(list) != 0 {
+		t.Errorf("expected 0 assets for other user, got %d", len(list))
 	}
 }
 
@@ -107,7 +148,7 @@ func TestUpdateAsset(t *testing.T) {
 		t.Fatalf("UpdateAsset: %v", err)
 	}
 
-	got, _ := s.GetAsset(a.ID)
+	got, _ := s.GetAsset(a.ID, testUserID)
 	if got.CurrentPrice != 200.0 {
 		t.Errorf("expected CurrentPrice 200, got %f", got.CurrentPrice)
 	}
@@ -121,11 +162,11 @@ func TestDeleteAsset(t *testing.T) {
 	a := sampleAsset()
 	s.CreateAsset(a)
 
-	if err := s.DeleteAsset(a.ID); err != nil {
+	if err := s.DeleteAsset(a.ID, testUserID); err != nil {
 		t.Fatalf("DeleteAsset: %v", err)
 	}
 
-	_, err := s.GetAsset(a.ID)
+	_, err := s.GetAsset(a.ID, testUserID)
 	if err == nil {
 		t.Error("expected error after delete, got nil")
 	}
@@ -133,9 +174,20 @@ func TestDeleteAsset(t *testing.T) {
 
 func TestDeleteNotFound(t *testing.T) {
 	s := setupTestStore(t)
-	err := s.DeleteAsset("nonexistent")
+	err := s.DeleteAsset("nonexistent", testUserID)
 	if err == nil {
 		t.Error("expected error deleting nonexistent asset, got nil")
+	}
+}
+
+func TestDeleteWrongUser(t *testing.T) {
+	s := setupTestStore(t)
+	a := sampleAsset()
+	s.CreateAsset(a)
+
+	err := s.DeleteAsset(a.ID, "other-user")
+	if err == nil {
+		t.Error("expected error deleting asset with wrong user, got nil")
 	}
 }
 

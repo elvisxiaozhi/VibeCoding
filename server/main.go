@@ -50,6 +50,9 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	authHandler := &handler.Auth{Store: s}
+	authHandler.RegisterRoutes(mux)
+
 	assetsHandler := &handler.Assets{Store: s}
 	assetsHandler.RegisterRoutes(mux)
 
