@@ -1,0 +1,21 @@
+name: AssetDashboard
+options:
+  bundleIdPrefix: com.theodore
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "16.0"
+
+targets:
+  AssetDashboard:
+    type: application
+    platform: iOS
+    sources:
+      - AssetDashboard
+    settings:
+      base:
+        INFOPLIST_FILE: AssetDashboard/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.theodore.AssetDashboard
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Automatic
