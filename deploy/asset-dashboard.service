@@ -1,0 +1,15 @@
+[Unit]
+Description=Asset Dashboard Go Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/asset-dashboard
+ExecStart=/opt/asset-dashboard/asset-dashboard
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
