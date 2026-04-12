@@ -1,33 +1,50 @@
-# 资产汇总看板 (Asset Dashboard) — 项目规范 v2
+# 资产汇总看板 (Asset Dashboard) — 项目规范 v3
 
 ## 1. 项目概述
 
-一款**纯前端**的个人资产记录与汇总工具。用户可录入股票、ETF、加密货币、现金等资产，系统自动计算总资产、盈亏，并以图表展示分类占比。
+一款**纯前端 → 前后端分离**的个人资产记录与汇总工具。用户可录入股票、ETF、加密货币、现金等资产，系统自动计算总资产、盈亏，并以图表展示分类占比。
 
 **核心目标：**
 
 - 提供清晰的全局资产视图（总资产、各分类占比、盈亏情况）
 - 支持多类资产的增删改查
-- 数据本地持久化，刷新不丢失
+- 数据持久化（Phase 1 使用 localStorage，Phase 2 起切换为 Go + SQLite 后端）
 - 界面具备现代金融产品的专业感，深色主题为主
+- Go 后端可编译为单二进制部署到 VPS
 
 ---
 
 ## 2. 技术栈（严格约束）
 
+### 前端
+
 | 用途 | 选型 | 说明 |
 |------|------|------|
-| 构建工具 | **Vite** | 轻量快速，纯前端最佳选择，避免 Next.js 的 SSR 复杂度 |
+| 构建工具 | **Vite** | 轻量快速，纯前端最佳选择 |
 | 核心框架 | **React 18 + TypeScript** | — |
 | 样式方案 | **Tailwind CSS** | 实用优先，适合快速开发 |
 | UI 组件库 | **Shadcn UI** | 按需复制组件，不引入额外依赖 |
-| 图表库 | **Recharts** | React 生态主流图表库 |
+| 图表库 | **Recharts** | React 生态主流图表库（Step 7 起引入） |
 | 图标库 | **Lucide React** | — |
-| 数据持久化 | **localStorage** | 纯前端阶段使用，后续可替换为后端 API |
-| 包管理器 | **pnpm** | — |
+| 包管理器 | **npm** | — |
 
-> **为什么不用 Next.js？**
-> 本项目是纯客户端单页应用，不需要 SSR、SSG、API Routes 等服务端能力。Vite + React 配置更简单、构建更快、概念更少，对前端新手更友好。
+### 后端（Phase 2 起引入）
+
+| 用途 | 选型 | 说明 |
+|------|------|------|
+| 语言 | **Go 1.22+** | 标准库 ServeMux 已支持 method + path pattern routing |
+| 路由 | **`net/http` 标准库** | 不引入 gin/echo/chi 等框架 |
+| 数据库 | **SQLite** | 单文件零运维，贴合个人工具定位 |
+| SQLite 驱动 | **`modernc.org/sqlite`** | 纯 Go 实现，无 CGO，交叉编译友好 |
+| SQL 层 | **`database/sql`** | 直接写 SQL，不用 ORM，不用 sqlc |
+| 数据库迁移 | **goose** | 纯 SQL 迁移文件，轻量 |
+| JSON | **stdlib `encoding/json`** | 无需第三方 |
+| CORS | **手写中间件** | 开发阶段允许 localhost:5173，不拉依赖 |
+| 部署 | **`go build` → 单二进制 + data.db** | scp 到 VPS 即可运行 |
+
+### 类型同步策略
+
+前后端各自维护一份 `Asset` 类型定义（前端 `src/lib/types.ts`，后端 `server/internal/model/asset.go`），手动保持一致。字段变更时两端都要改。
 
 ---
 
@@ -60,11 +77,27 @@ interface Asset {
   updatedAt: string;     // ISO 8601 更新时间
 }
 
-// 派生计算（不存储，实时计算）
+// 派生计算（不存储，实时计算，保留在前端 calc.ts）
 // 市值 = currentPrice × quantity
 // 成本 = costBasis × quantity
 // 盈亏额 = 市值 - 成本
 // 盈亏率 = 盈亏额 / 成本 × 100%
+```
+
+Go 后端对应 struct：
+
+```go
+type Asset struct {
+    ID           string  `json:"id"`
+    Symbol       string  `json:"symbol"`
+    Category     string  `json:"category"`
+    CostBasis    float64 `json:"costBasis"`
+    CurrentPrice float64 `json:"currentPrice"`
+    Quantity     float64 `json:"quantity"`
+    Currency     string  `json:"currency"`
+    CreatedAt    string  `json:"createdAt"`
+    UpdatedAt    string  `json:"updatedAt"`
+}
 ```
 
 ---
@@ -94,9 +127,13 @@ interface Asset {
 
 ## 5. 开发计划 (Milestones)
 
-每个 Step 为一次完整可运行的交付，按顺序执行。
+每个 Step 为一次完整可运行的交付，按顺序执行。分为三个 Phase。
 
-### Step 1：项目初始化 + 全局布局骨架
+---
+
+### Phase 1 — 前端基础（已完成）
+
+#### Step 1：项目初始化 + 全局布局骨架 ✅
 
 **目标：** 项目能跑起来，看到左右分栏布局。
 
@@ -111,7 +148,7 @@ interface Asset {
 
 ---
 
-### Step 2：Mock 数据 + 本地存储层
+#### Step 2：Mock 数据 + 本地存储层 ✅
 
 **目标：** 数据层就绪，组件可以读写资产数据。
 
@@ -129,7 +166,79 @@ interface Asset {
 
 ---
 
-### Step 3：首页看板 (Dashboard)
+### Phase 2 — Go 后端
+
+#### Step 3：Go 项目骨架 + Health API
+
+**目标：** Go 后端能跑起来，能响应一个 HTTP 请求。
+
+- 在项目根目录创建 `server/` 子目录
+- `go mod init` 初始化 Go 模块
+- `server/main.go`：使用 `net/http` 启动 HTTP server 监听 `:8080`
+- 唯一路由 `GET /api/health` → `{"status":"ok"}`
+- 在项目根 `CLAUDE.md` 补充后端启动命令
+
+**验收：** `go run ./server` 启动成功，`curl localhost:8080/api/health` 返回 `{"status":"ok"}`。
+
+---
+
+#### Step 4：SQLite 数据层 + 迁移 + Seed
+
+**目标：** 数据库就绪，Go 代码可以读写资产数据。
+
+- 安装依赖：`modernc.org/sqlite`、`github.com/pressly/goose/v3`
+- goose 迁移文件 `server/migrations/001_create_assets.sql`：建 `assets` 表，字段与前端 `Asset` 一一对应
+- `server/internal/model/asset.go`：Go `Asset` struct + JSON tags，手动对齐前端 `src/lib/types.ts`
+- `server/internal/store/store.go`：封装 `*sql.DB`，提供方法：
+  - `ListAssets() ([]Asset, error)`
+  - `GetAsset(id string) (Asset, error)`
+  - `CreateAsset(a Asset) error`
+  - `UpdateAsset(a Asset) error`
+  - `DeleteAsset(id string) error`
+- Seed 函数：首次启动若表空则插入与前端 `mock.ts` 相同的 10 条数据
+- 数据库文件位于 `server/data.db`（已加入 `.gitignore`）
+
+**验收：** `go test ./server/internal/store/...` 通过，能正确增删改查。
+
+---
+
+#### Step 5：Assets CRUD API
+
+**目标：** 5 个 RESTful 端点可通过 curl 测试通过。
+
+- `server/internal/handler/assets.go`：实现 5 个 handler
+  - `GET    /api/assets`      → 返回全部资产列表
+  - `GET    /api/assets/{id}` → 返回单条资产
+  - `POST   /api/assets`      → 新增资产
+  - `PUT    /api/assets/{id}` → 更新资产
+  - `DELETE /api/assets/{id}` → 删除资产
+- JSON 请求 / 响应格式与前端 `Asset` 接口一致
+- 错误返回统一格式 `{"error":"..."}`，合理使用 HTTP 状态码（400/404/500）
+- CORS 中间件 `server/internal/middleware/cors.go`（允许 `localhost:5173`）
+
+**验收：** 用 `curl` 逐一测试五个端点，增删改查闭环正常。
+
+---
+
+#### Step 6：前端接入后端
+
+**目标：** 前端数据来源从 localStorage 切换为 Go API，全链路跑通。
+
+- `vite.config.ts` 添加 `server.proxy`：`/api` → `http://localhost:8080`
+- 改写 `src/hooks/useAssets.ts`：
+  - CRUD 操作全部替换为 `fetch('/api/...')`
+  - 删除 localStorage 读写逻辑
+  - 删除对 `src/data/mock.ts` 的 import（Mock 数据由后端 Seed 提供）
+- 派生计算（`totalValue` 等）保留在前端 `calc.ts`，不搬到后端
+- `src/data/mock.ts` 保留文件但不再被前端引用（后端 Seed 仍参考其数据）
+
+**验收：** 同时启动 Go server（`go run ./server`）+ Vite dev（`npm run dev`），前端页面展示的数据来自 SQLite，手动增删改查后刷新页面数据不丢失。
+
+---
+
+### Phase 3 — 前端功能完善（基于真实 API）
+
+#### Step 7：首页看板 (Dashboard)
 
 **目标：** 总览页展示核心指标和分类占比图表。
 
@@ -139,12 +248,13 @@ interface Asset {
   - **投入本金**（所有资产成本之和）
 - 分类占比饼图（Recharts PieChart）：按 stock/etf/crypto/cash 分类，显示各类市值占比
 - 资产涨跌排行（可选）：按盈亏率排序的 Top 5 列表
+- 删除 `src/App.tsx` 中 Step 2 遗留的临时 `DataSelfCheck` 组件
 
-**验收：** 看板数据与 Mock 数据计算一致，饼图正确渲染。
+**验收：** 看板数据与 API 返回数据计算一致，饼图正确渲染。
 
 ---
 
-### Step 4：资产列表页
+#### Step 8：资产列表页
 
 **目标：** 展示所有资产明细，支持排序。
 
@@ -154,11 +264,11 @@ interface Asset {
 - 支持按列点击排序
 - 每行末尾有「编辑」「删除」操作按钮
 
-**验收：** 列表正确显示所有 Mock 数据，排序功能正常。
+**验收：** 列表正确显示所有资产数据，排序功能正常。
 
 ---
 
-### Step 5：新增 / 编辑资产
+#### Step 9：新增 / 编辑资产
 
 **目标：** 用户可以手动录入和修改资产。
 
@@ -166,13 +276,13 @@ interface Asset {
 - 表单字段：代码、分类（下拉选择）、成本价、现价、数量
 - 表单校验：所有字段必填，数值必须 > 0
 - 编辑模式：点击列表行的「编辑」按钮，弹出预填充表单
-- 提交后数据写入 localStorage 并刷新列表
+- 提交后数据写入后端并刷新列表
 
 **验收：** 能正常新增、编辑资产，刷新页面数据不丢失。
 
 ---
 
-### Step 6：删除确认 + 全局优化
+#### Step 10：删除确认 + 全局优化
 
 **目标：** 补全交互细节，打磨体验。
 
@@ -203,27 +313,50 @@ interface Asset {
 ## 7. 文件结构参考
 
 ```
-src/
-├── components/
-│   ├── layout/
-│   │   ├── Sidebar.tsx
-│   │   ├── Header.tsx
-│   │   └── AppLayout.tsx
-│   ├── dashboard/
-│   │   ├── StatCard.tsx
-│   │   └── CategoryPieChart.tsx
-│   └── assets/
-│       ├── AssetTable.tsx
-│       └── AssetForm.tsx
-├── hooks/
-│   └── useAssets.ts
-├── lib/
-│   ├── calc.ts
-│   └── types.ts
-├── data/
-│   └── mock.ts
-├── App.tsx
-└── main.tsx
+VibeCoding/
+├── src/                            # 前端
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── Header.tsx
+│   │   │   └── AppLayout.tsx
+│   │   ├── ui/                     # Shadcn 组件
+│   │   ├── dashboard/
+│   │   │   ├── StatCard.tsx
+│   │   │   └── CategoryPieChart.tsx
+│   │   └── assets/
+│   │       ├── AssetTable.tsx
+│   │       └── AssetForm.tsx
+│   ├── hooks/
+│   │   └── useAssets.ts
+│   ├── lib/
+│   │   ├── calc.ts
+│   │   ├── types.ts
+│   │   └── utils.ts
+│   ├── data/
+│   │   └── mock.ts
+│   ├── App.tsx
+│   └── main.tsx
+├── server/                         # Go 后端（Phase 2 起创建）
+│   ├── main.go
+│   ├── go.mod
+│   ├── go.sum
+│   ├── internal/
+│   │   ├── model/
+│   │   │   └── asset.go
+│   │   ├── store/
+│   │   │   ├── store.go
+│   │   │   └── store_test.go
+│   │   ├── handler/
+│   │   │   └── assets.go
+│   │   └── middleware/
+│   │       └── cors.go
+│   ├── migrations/
+│   │   └── 001_create_assets.sql
+│   └── seed.go
+├── asset-dashboard-spec.md
+├── CLAUDE.md
+└── docs/steps/
 ```
 
 ---
@@ -231,6 +364,10 @@ src/
 ## 8. 注意事项
 
 - **不要过早引入路由库**：只有 3 个页面，用 `useState` 切换即可
-- **不要过早引入状态管理库**：`useAssets` Hook + localStorage 足够当前需求
+- **不要过早引入状态管理库**：`useAssets` Hook 足够当前需求
+- **Go 后端不引入 Web 框架**（gin/echo/chi），用 `net/http` 标准库
+- **Go 后端不引入 ORM**（gorm 等），用 `database/sql` 直接写 SQL
+- **前后端类型手动同步**：`Asset` 字段变更时两端都要改
+- **派生计算留在前端**：`calc.ts` 不搬到后端，后端只做存储和 CRUD
 - **所有金额计算使用原始数值**，仅在展示层格式化
 - **每个 Step 结束后必须能完整运行**，不允许留下半成品
