@@ -28,3 +28,4 @@ dist-ssr
 
 # Go backend
 server/data.db
+server/vibecoding-server

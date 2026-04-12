@@ -20,8 +20,8 @@
 - ✅ **Step 6 — 前端接入后端**（见 `docs/steps/step-6-report.md`）
 
 ### Phase 3 — 前端功能完善（基于真实 API）
-- ⏭️ **Step 7 — 首页看板**（下一步，需引入 recharts，删除 DataSelfCheck）
-- ⏸️ Step 8 — 资产列表页
+- ✅ **Step 7 — 首页看板**（见 `docs/steps/step-7-report.md`）
+- ⏭️ **Step 8 — 资产列表页**（下一步）
 - ⏸️ Step 9 — 新增 / 编辑资产
 - ⏸️ Step 10 — 删除确认 + 全局优化
 
