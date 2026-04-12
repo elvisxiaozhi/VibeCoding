@@ -15,8 +15,8 @@
 
 ### Phase 2 — Go 后端
 - ✅ **Step 3 — Go 项目骨架 + Health API**（见 `docs/steps/step-3-report.md`）
-- ⏭️ **Step 4 — SQLite 数据层 + 迁移 + Seed**（下一步）
-- ⏸️ Step 5 — Assets CRUD API
+- ✅ **Step 4 — SQLite 数据层 + 迁移 + Seed**（见 `docs/steps/step-4-report.md`）
+- ⏭️ **Step 5 — Assets CRUD API**（下一步）
 - ⏸️ Step 6 — 前端接入后端
 
 ### Phase 3 — 前端功能完善
