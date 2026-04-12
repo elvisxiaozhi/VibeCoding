@@ -17,10 +17,10 @@
 - ✅ **Step 3 — Go 项目骨架 + Health API**（见 `docs/steps/step-3-report.md`）
 - ✅ **Step 4 — SQLite 数据层 + 迁移 + Seed**（见 `docs/steps/step-4-report.md`）
 - ✅ **Step 5 — Assets CRUD API**（见 `docs/steps/step-5-report.md`）
-- ⏭️ **Step 6 — 前端接入后端**（下一步）
+- ✅ **Step 6 — 前端接入后端**（见 `docs/steps/step-6-report.md`）
 
-### Phase 3 — 前端功能完善
-- ⏸️ Step 7 — 首页看板
+### Phase 3 — 前端功能完善（基于真实 API）
+- ⏭️ **Step 7 — 首页看板**（下一步，需引入 recharts，删除 DataSelfCheck）
 - ⏸️ Step 8 — 资产列表页
 - ⏸️ Step 9 — 新增 / 编辑资产
 - ⏸️ Step 10 — 删除确认 + 全局优化
