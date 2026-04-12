@@ -382,6 +382,23 @@ type Session struct {
 
 ---
 
+### Phase 5 前置 — 后端适配 iOS
+
+#### Step 13：后端支持 Bearer Token 认证
+
+**目标：** auth 中间件同时支持 Cookie 和 Authorization Header，iOS 客户端可用 Bearer token 调用 API。
+
+- 修改 `server/internal/middleware/auth.go`：优先读 `Authorization: Bearer <token>` header，fallback 到 Cookie
+- 修改 `server/internal/handler/auth.go`：login 响应 body 中返回 `token` 字段，方便客户端提取
+- CORS 中间件 `Access-Control-Allow-Headers` 补充 `Authorization`
+- 现有 Web 前端行为不变（继续走 Cookie）
+
+**验收：** curl 用 `-H "Authorization: Bearer <token>"` 可正常访问 `/api/assets`；Web 前端 Cookie 方式不受影响。
+
+> **Phase 5 — iOS App 的完整规范见 `asset-dashboard-ios-spec.md`**
+
+---
+
 ## 6. UI 设计规范
 
 | 项目 | 规范 |
