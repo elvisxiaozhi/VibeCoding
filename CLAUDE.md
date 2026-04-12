@@ -29,6 +29,15 @@
 - ✅ **Step 11 — 后端认证体系**（见 `docs/steps/step-11-report.md`）
 - ✅ **Step 12 — 前端登录与双模式切换**（见 `docs/steps/step-12-report.md`）
 
+### Phase 5 前置 — 后端适配 iOS
+- ✅ **Step 13 — 后端支持 Bearer Token 认证**（见 `docs/steps/step-13-report.md`）
+
+### Phase 5 — iOS App（规范见 `asset-dashboard-ios-spec.md`）
+- 🔲 **Step 14 — Xcode 项目初始化 + 网络层 + 登录**
+- 🔲 **Step 15 — 看板首页**
+- 🔲 **Step 16 — 资产列表 + CRUD**
+- 🔲 **Step 17 — 体验打磨**
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`
