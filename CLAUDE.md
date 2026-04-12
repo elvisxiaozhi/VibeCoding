@@ -23,7 +23,7 @@
 - ✅ **Step 7 — 首页看板**（见 `docs/steps/step-7-report.md`）
 - ✅ **Step 8 — 资产列表页**（见 `docs/steps/step-8-report.md`）
 - ✅ **Step 9 — 新增 / 编辑资产**（见 `docs/steps/step-9-report.md`）
-- ⏭️ **Step 10 — 删除确认 + 全局优化**（下一步）
+- ✅ **Step 10 — 删除确认 + 全局优化**（见 `docs/steps/step-10-report.md`）
 
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
