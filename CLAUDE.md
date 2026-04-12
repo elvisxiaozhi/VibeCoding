@@ -25,6 +25,10 @@
 - ✅ **Step 9 — 新增 / 编辑资产**（见 `docs/steps/step-9-report.md`）
 - ✅ **Step 10 — 删除确认 + 全局优化**（见 `docs/steps/step-10-report.md`）
 
+### Phase 4 — 用户认证
+- ✅ **Step 11 — 后端认证体系**（见 `docs/steps/step-11-report.md`）
+- 🔲 **Step 12 — 前端登录与双模式切换**
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`
