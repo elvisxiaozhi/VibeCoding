@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0932D28850C25F5F01550381 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25ECC33F978A0FD2617F4E58 /* User.swift */; };
+		108F0FA5ADB7E0DB08C57992 /* AssetRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D263F6AC212AA87C872DBE8B /* AssetRowView.swift */; };
+		15EF312B4AF9129F96520D75 /* AssetListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2C65FA96CDC6F8E29257B3 /* AssetListViewModel.swift */; };
 		1C472225FF926EDDBFDDBB7F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F9E6BF07823CCF93735E4432 /* Assets.xcassets */; };
 		1CE1A5B6DB700CFFA77085EB /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904B05DAE981ABFA1988BDBE /* AuthViewModel.swift */; };
 		23D581BF525A23AD65B02BAD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88211117CCFEBA6911C120C7 /* APIClient.swift */; };
@@ -17,7 +19,9 @@
 		73EF4F9D4BFFA2E0B5CE7603 /* Asset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1BB4BD39B49393586824DF /* Asset.swift */; };
 		BF57AFBAC8FAC12FA3C6B5D8 /* AssetDashboardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D70A418C0B995C792C60DAA /* AssetDashboardApp.swift */; };
 		C3711A14A14CDC3404570D7C /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC3F04108F319EA23F042C1 /* DashboardViewModel.swift */; };
+		CD170FA655004F642D8B1E64 /* AssetFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4971E31B219C61629E400505 /* AssetFormView.swift */; };
 		CD48473F022B6B6D5757C8FD /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63385B9B35877AB580FFB7F9 /* MockData.swift */; };
+		D1FD1D7E22C60C973554FB4E /* AssetListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D894FBDFE75235CB44001FDA /* AssetListView.swift */; };
 		D77074458A73863139F501F3 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47805611B3A6A1A33388CB31 /* LoginView.swift */; };
 		DC98A491E3E9AFF39FF0741D /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26932695CE203506AFCC7D01 /* DashboardView.swift */; };
 		E4135DF593A50B71AE1451ED /* CategoryPieChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9ABB92F2ADC63F1C8BD1774 /* CategoryPieChart.swift */; };
@@ -34,6 +38,8 @@
 		36F822FEFE5816203CC26BF6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3EC3F04108F319EA23F042C1 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		47805611B3A6A1A33388CB31 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		4971E31B219C61629E400505 /* AssetFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetFormView.swift; sourceTree = "<group>"; };
+		4C2C65FA96CDC6F8E29257B3 /* AssetListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetListViewModel.swift; sourceTree = "<group>"; };
 		5FAD439870862C0FBE64EFF3 /* Calc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Calc.swift; sourceTree = "<group>"; };
 		63385B9B35877AB580FFB7F9 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		6D70A418C0B995C792C60DAA /* AssetDashboardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDashboardApp.swift; sourceTree = "<group>"; };
@@ -41,12 +47,24 @@
 		904B05DAE981ABFA1988BDBE /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		B92E33D84246DA0C6DEBF0E1 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		CFD9949BDF5045DC2903376F /* AssetDashboard.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AssetDashboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D263F6AC212AA87C872DBE8B /* AssetRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetRowView.swift; sourceTree = "<group>"; };
+		D894FBDFE75235CB44001FDA /* AssetListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetListView.swift; sourceTree = "<group>"; };
 		F9ABB92F2ADC63F1C8BD1774 /* CategoryPieChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryPieChart.swift; sourceTree = "<group>"; };
 		F9E6BF07823CCF93735E4432 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FF1BB4BD39B49393586824DF /* Asset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Asset.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		0885AF217E8BFDD53A685FCE /* Assets */ = {
+			isa = PBXGroup;
+			children = (
+				4971E31B219C61629E400505 /* AssetFormView.swift */,
+				D894FBDFE75235CB44001FDA /* AssetListView.swift */,
+				D263F6AC212AA87C872DBE8B /* AssetRowView.swift */,
+			);
+			path = Assets;
+			sourceTree = "<group>";
+		};
 		552CE26589EA6B1909296F06 /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
@@ -60,6 +78,7 @@
 		6D455D46DA904CB08157257E /* View */ = {
 			isa = PBXGroup;
 			children = (
+				0885AF217E8BFDD53A685FCE /* Assets */,
 				B51691BEAFA29F9A341E6047 /* Auth */,
 				552CE26589EA6B1909296F06 /* Dashboard */,
 				92FB15BAD2FF0BF9255C9E6B /* Settings */,
@@ -145,6 +164,7 @@
 		C046044356A775C11D560B44 /* ViewModel */ = {
 			isa = PBXGroup;
 			children = (
+				4C2C65FA96CDC6F8E29257B3 /* AssetListViewModel.swift */,
 				904B05DAE981ABFA1988BDBE /* AuthViewModel.swift */,
 				3EC3F04108F319EA23F042C1 /* DashboardViewModel.swift */,
 			);
@@ -224,6 +244,10 @@
 				23D581BF525A23AD65B02BAD /* APIClient.swift in Sources */,
 				73EF4F9D4BFFA2E0B5CE7603 /* Asset.swift in Sources */,
 				BF57AFBAC8FAC12FA3C6B5D8 /* AssetDashboardApp.swift in Sources */,
+				CD170FA655004F642D8B1E64 /* AssetFormView.swift in Sources */,
+				D1FD1D7E22C60C973554FB4E /* AssetListView.swift in Sources */,
+				15EF312B4AF9129F96520D75 /* AssetListViewModel.swift in Sources */,
+				108F0FA5ADB7E0DB08C57992 /* AssetRowView.swift in Sources */,
 				1CE1A5B6DB700CFFA77085EB /* AuthViewModel.swift in Sources */,
 				F2BF84CB60D4E468E71620BF /* Calc.swift in Sources */,
 				E4135DF593A50B71AE1451ED /* CategoryPieChart.swift in Sources */,

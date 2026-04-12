@@ -15,7 +15,7 @@ struct ContentView: View {
                         DashboardView()
                     }
                     Tab("资产", systemImage: "list.bullet") {
-                        Text("资产列表（Step 16 实现）")
+                        AssetListView()
                     }
                     Tab("设置", systemImage: "gearshape") {
                         SettingsView()
