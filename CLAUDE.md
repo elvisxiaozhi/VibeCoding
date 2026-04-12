@@ -14,8 +14,8 @@
 - ✅ **Step 2 — Mock 数据 + 本地存储层**（见 `docs/steps/step-2-report.md`）
 
 ### Phase 2 — Go 后端
-- ⏭️ **Step 3 — Go 项目骨架 + Health API**（下一步）
-- ⏸️ Step 4 — SQLite 数据层 + 迁移 + Seed
+- ✅ **Step 3 — Go 项目骨架 + Health API**（见 `docs/steps/step-3-report.md`）
+- ⏭️ **Step 4 — SQLite 数据层 + 迁移 + Seed**（下一步）
 - ⏸️ Step 5 — Assets CRUD API
 - ⏸️ Step 6 — 前端接入后端
 
