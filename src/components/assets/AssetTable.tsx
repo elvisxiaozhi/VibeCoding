@@ -1,7 +1,15 @@
 import { useMemo, useState } from 'react'
 
-import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 
+import { AssetForm, type AssetFormData } from '@/components/assets/AssetForm'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -76,14 +84,11 @@ const COLUMNS: ColumnDef[] = [
   { key: 'pnlRate', label: '盈亏率', align: 'right' },
 ]
 
-function SortIcon({
-  active,
-  dir,
-}: {
-  active: boolean
-  dir: SortDir
-}) {
-  if (!active) return <ArrowUpDown className="ml-1 inline h-3.5 w-3.5 text-muted-foreground" />
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active)
+    return (
+      <ArrowUpDown className="ml-1 inline h-3.5 w-3.5 text-muted-foreground" />
+    )
   return dir === 'asc' ? (
     <ArrowUp className="ml-1 inline h-3.5 w-3.5" />
   ) : (
@@ -92,9 +97,13 @@ function SortIcon({
 }
 
 export function AssetTable() {
-  const { assets } = useAssets()
+  const { assets, addAsset, updateAsset } = useAssets()
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  // 表单弹窗状态
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<Asset | undefined>(undefined)
 
   const sorted = useMemo(() => {
     const list = [...assets]
@@ -121,78 +130,122 @@ export function AssetTable() {
     }
   }
 
-  return (
-    <div className="rounded-xl border border-border/50 bg-card shadow">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {COLUMNS.map((col) => (
-              <TableHead
-                key={col.key}
-                className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
-                onClick={() => handleSort(col.key)}
-              >
-                {col.label}
-                <SortIcon active={sortKey === col.key} dir={sortDir} />
-              </TableHead>
-            ))}
-            <TableHead className="text-right">操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sorted.map((asset) => {
-            const mv = marketValue(asset)
-            const pnl = pnlValue(asset)
-            const rate = pnlRate(asset)
-            const isPositive = pnl >= 0
-            const pnlColor = isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'
+  function handleAdd() {
+    setEditingAsset(undefined)
+    setFormOpen(true)
+  }
 
-            return (
-              <TableRow key={asset.id}>
-                <TableCell className="font-medium text-white">
-                  {asset.symbol}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {CATEGORY_LABELS[asset.category]}
-                </TableCell>
-                <TableCell className="text-right font-mono text-white">
-                  {asset.quantity}
-                </TableCell>
-                <TableCell className="text-right font-mono text-white">
-                  {formatCNY(asset.costBasis)}
-                </TableCell>
-                <TableCell className="text-right font-mono text-white">
-                  {formatCNY(asset.currentPrice)}
-                </TableCell>
-                <TableCell className="text-right font-mono text-white">
-                  {formatCNY(mv)}
-                </TableCell>
-                <TableCell className={`text-right font-mono ${pnlColor}`}>
-                  {isPositive ? '+' : ''}
-                  {formatCNY(pnl)}
-                </TableCell>
-                <TableCell className={`text-right font-mono ${pnlColor}`}>
-                  {formatPercent(rate)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+  function handleEdit(asset: Asset) {
+    setEditingAsset(asset)
+    setFormOpen(true)
+  }
+
+  function handleFormSubmit(data: AssetFormData) {
+    if (editingAsset) {
+      updateAsset(editingAsset.id, data)
+    } else {
+      addAsset(data)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 顶部操作栏 */}
+      <div className="flex justify-end">
+        <Button onClick={handleAdd}>
+          <Plus className="mr-2 h-4 w-4" />
+          新增资产
+        </Button>
+      </div>
+
+      {/* 表格 */}
+      <div className="rounded-xl border border-border/50 bg-card shadow">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {COLUMNS.map((col) => (
+                <TableHead
+                  key={col.key}
+                  className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
+                  onClick={() => handleSort(col.key)}
+                >
+                  {col.label}
+                  <SortIcon active={sortKey === col.key} dir={sortDir} />
+                </TableHead>
+              ))}
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sorted.map((asset) => {
+              const mv = marketValue(asset)
+              const pnl = pnlValue(asset)
+              const rate = pnlRate(asset)
+              const isPositive = pnl >= 0
+              const pnlColor = isPositive
+                ? 'text-[#22c55e]'
+                : 'text-[#ef4444]'
+
+              return (
+                <TableRow key={asset.id}>
+                  <TableCell className="font-medium text-white">
+                    {asset.symbol}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {CATEGORY_LABELS[asset.category]}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-white">
+                    {asset.quantity}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-white">
+                    {formatCNY(asset.costBasis)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-white">
+                    {formatCNY(asset.currentPrice)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-white">
+                    {formatCNY(mv)}
+                  </TableCell>
+                  <TableCell className={`text-right font-mono ${pnlColor}`}>
+                    {isPositive ? '+' : ''}
+                    {formatCNY(pnl)}
+                  </TableCell>
+                  <TableCell className={`text-right font-mono ${pnlColor}`}>
+                    {formatPercent(rate)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleEdit(asset)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* 新增/编辑表单弹窗 */}
+      <AssetForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        asset={editingAsset}
+        onSubmit={handleFormSubmit}
+      />
     </div>
   )
 }
