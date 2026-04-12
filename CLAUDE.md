@@ -27,7 +27,7 @@
 
 ### Phase 4 — 用户认证
 - ✅ **Step 11 — 后端认证体系**（见 `docs/steps/step-11-report.md`）
-- 🔲 **Step 12 — 前端登录与双模式切换**
+- ✅ **Step 12 — 前端登录与双模式切换**（见 `docs/steps/step-12-report.md`）
 
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
