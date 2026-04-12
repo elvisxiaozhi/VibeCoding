@@ -1,4 +1,10 @@
-import { DollarSign, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import {
+  DollarSign,
+  Loader2,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react'
 
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -15,7 +21,7 @@ function formatPercent(n: number): string {
 }
 
 export function Dashboard() {
-  const { assets, totalValue, totalCost, totalPnL, categoryBreakdown } =
+  const { assets, loading, totalValue, totalCost, totalPnL, categoryBreakdown } =
     useAssets()
 
   const pnlPercent = totalCost === 0 ? 0 : totalPnL / totalCost
@@ -25,6 +31,28 @@ export function Dashboard() {
   const top5 = [...assets]
     .sort((a, b) => pnlRate(b) - pnlRate(a))
     .slice(0, 5)
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (assets.length === 0) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-xl border border-border/50 bg-card">
+        <Wallet className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <p className="text-sm font-medium text-white">暂无资产数据</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            请前往「资产」页面添加您的资产
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

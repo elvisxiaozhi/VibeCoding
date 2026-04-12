@@ -13,14 +13,18 @@ export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 
 export function useAssets() {
   const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
 
   const fetchAssets = useCallback(async () => {
     try {
+      setLoading(true)
       const res = await fetch('/api/assets')
       const data = (await res.json()) as Asset[]
       setAssets(data)
     } catch (err) {
       console.error('fetchAssets failed:', err)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -108,6 +112,7 @@ export function useAssets() {
 
   return {
     assets,
+    loading,
     addAsset,
     updateAsset,
     deleteAsset,

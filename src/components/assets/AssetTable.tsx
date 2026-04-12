@@ -4,12 +4,24 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Loader2,
   Pencil,
   Plus,
   Trash2,
+  Wallet,
 } from 'lucide-react'
 
 import { AssetForm, type AssetFormData } from '@/components/assets/AssetForm'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -97,13 +109,19 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 }
 
 export function AssetTable() {
-  const { assets, addAsset, updateAsset } = useAssets()
+  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets()
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   // 表单弹窗状态
   const [formOpen, setFormOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>(undefined)
+
+  // 删除确认弹窗状态
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletingAsset, setDeletingAsset] = useState<Asset | undefined>(
+    undefined,
+  )
 
   const sorted = useMemo(() => {
     const list = [...assets]
@@ -146,6 +164,54 @@ export function AssetTable() {
     } else {
       addAsset(data)
     }
+  }
+
+  function handleDeleteClick(asset: Asset) {
+    setDeletingAsset(asset)
+    setDeleteOpen(true)
+  }
+
+  function handleDeleteConfirm() {
+    if (deletingAsset) {
+      deleteAsset(deletingAsset.id)
+    }
+    setDeleteOpen(false)
+    setDeletingAsset(undefined)
+  }
+
+  // 加载状态
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // 空状态
+  if (assets.length === 0) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-xl border border-border/50 bg-card">
+        <Wallet className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <p className="text-sm font-medium text-white">暂无资产数据</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            点击下方按钮添加您的第一笔资产
+          </p>
+        </div>
+        <Button onClick={handleAdd}>
+          <Plus className="mr-2 h-4 w-4" />
+          新增资产
+        </Button>
+
+        <AssetForm
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          asset={editingAsset}
+          onSubmit={handleFormSubmit}
+        />
+      </div>
+    )
   }
 
   return (
@@ -227,6 +293,7 @@ export function AssetTable() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
+                        onClick={() => handleDeleteClick(asset)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -246,6 +313,29 @@ export function AssetTable() {
         asset={editingAsset}
         onSubmit={handleFormSubmit}
       />
+
+      {/* 删除确认弹窗 */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              确认删除
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除资产「{deletingAsset?.symbol}」吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#ef4444] text-white hover:bg-[#dc2626]"
+              onClick={handleDeleteConfirm}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
