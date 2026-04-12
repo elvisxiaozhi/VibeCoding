@@ -35,7 +35,7 @@
 ### Phase 5 — iOS App（规范见 `asset-dashboard-ios-spec.md`）
 - ✅ **Step 14 — Xcode 项目初始化 + 网络层 + 登录**（见 `docs/steps/step-14-report.md`）
 - ✅ **Step 15 — 看板首页**（见 `docs/steps/step-15-report.md`）
-- 🔲 **Step 16 — 资产列表 + CRUD**
+- ✅ **Step 16 — 资产列表 + CRUD**（见 `docs/steps/step-16-report.md`）
 - 🔲 **Step 17 — 体验打磨**
 
 ## 红线（必须遵守）
