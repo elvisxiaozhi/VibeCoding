@@ -81,14 +81,27 @@ func (h *Auth) login(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   7 * 24 * 3600,
 	})
 
-	writeJSON(w, http.StatusOK, user)
+	// 响应同时包含 user 信息和 token（方便非浏览器客户端提取）
+	writeJSON(w, http.StatusOK, loginResponse{
+		ID:        user.ID,
+		Username:  user.Username,
+		CreatedAt: user.CreatedAt,
+		Token:     token,
+	})
+}
+
+type loginResponse struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	CreatedAt string `json:"createdAt"`
+	Token     string `json:"token"`
 }
 
 // POST /api/logout
 func (h *Auth) logout(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("session_token")
-	if err == nil {
-		_ = h.Store.DeleteSession(cookie.Value)
+	token := middleware.ExtractToken(r)
+	if token != "" {
+		_ = h.Store.DeleteSession(token)
 	}
 
 	http.SetCookie(w, &http.Cookie{
@@ -104,13 +117,13 @@ func (h *Auth) logout(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/me
 func (h *Auth) me(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("session_token")
-	if err != nil {
+	token := middleware.ExtractToken(r)
+	if token == "" {
 		writeError(w, http.StatusUnauthorized, "not logged in")
 		return
 	}
 
-	sess, err := h.Store.GetSession(cookie.Value)
+	sess, err := h.Store.GetSession(token)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "session expired")
 		return
