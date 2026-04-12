@@ -36,7 +36,7 @@
 - ✅ **Step 14 — Xcode 项目初始化 + 网络层 + 登录**（见 `docs/steps/step-14-report.md`）
 - ✅ **Step 15 — 看板首页**（见 `docs/steps/step-15-report.md`）
 - ✅ **Step 16 — 资产列表 + CRUD**（见 `docs/steps/step-16-report.md`）
-- 🔲 **Step 17 — 体验打磨**
+- ✅ **Step 17 — 体验打磨**（见 `docs/steps/step-17-report.md`）
 
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
