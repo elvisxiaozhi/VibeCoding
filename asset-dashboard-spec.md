@@ -40,6 +40,7 @@
 | 数据库迁移 | **goose** | 纯 SQL 迁移文件，轻量 |
 | JSON | **stdlib `encoding/json`** | 无需第三方 |
 | CORS | **手写中间件** | 开发阶段允许 localhost:5173，不拉依赖 |
+| 密码哈希 | **`golang.org/x/crypto/bcrypt`** | 标准库扩展，不算第三方框架 |
 | 部署 | **`go build` → 单二进制 + data.db** | scp 到 VPS 即可运行 |
 
 ### 类型同步策略
@@ -97,6 +98,39 @@ type Asset struct {
     Currency     string  `json:"currency"`
     CreatedAt    string  `json:"createdAt"`
     UpdatedAt    string  `json:"updatedAt"`
+}
+```
+
+### 用户与认证（Phase 4 引入）
+
+```typescript
+// 用户（仅后端存储，前端只用 id + username）
+interface User {
+  id: string;
+  username: string;
+}
+
+// 前端认证状态
+interface AuthState {
+  user: User | null;    // null = 游客
+  loading: boolean;     // 初始化时检查登录态
+}
+```
+
+Go 后端对应 struct：
+
+```go
+type User struct {
+    ID           string `json:"id"`
+    Username     string `json:"username"`
+    PasswordHash string `json:"-"`          // 不序列化到 JSON
+    CreatedAt    string `json:"createdAt"`
+}
+
+type Session struct {
+    Token     string
+    UserID    string
+    ExpiresAt string
 }
 ```
 
@@ -296,6 +330,58 @@ type Asset struct {
 
 ---
 
+### Phase 4 — 用户认证
+
+#### Step 11：后端认证体系
+
+**目标：** 后端支持单用户登录，资产数据按用户隔离。
+
+- 新增 goose 迁移：
+  - `users` 表：`id`, `username`, `password_hash`, `created_at`
+  - `sessions` 表：`token`, `user_id`, `expires_at`
+  - `assets` 表新增 `user_id` 列，已有数据归属到 seed 用户
+- `server/internal/model/user.go`：`User` 和 `Session` struct
+- `server/internal/store/user.go`：用户和会话的 CRUD 方法
+- 密码哈希使用 `golang.org/x/crypto/bcrypt`
+- 新增 API：
+  - `POST /api/login` — 验证用户名密码，创建 session，Set-Cookie 返回 token
+  - `POST /api/logout` — 删除 session，清除 Cookie
+  - `GET /api/me` — 返回当前用户信息，未登录返回 401
+- 不开放注册，提供 CLI seed 方式创建账号（在 seed 函数中硬编码一个默认用户，用户名密码从环境变量或写死）
+- `server/internal/middleware/auth.go`：
+  - 从 Cookie 读 token，查 sessions 表验证
+  - 验证通过后将 `user_id` 注入 `context`
+- `/api/assets/*` 全部包裹 auth 中间件，store 层查询加 `WHERE user_id = ?`
+- `/api/health`, `/api/login`, `/api/me` 不需要认证
+
+**验收：** 用 curl 测试：未登录访问 `/api/assets` 返回 401；登录后带 Cookie 可正常 CRUD；数据按 user_id 隔离。
+
+---
+
+#### Step 12：前端登录与双模式切换
+
+**目标：** 前端区分游客/登录态，游客看 mock 静态数据（只读），登录后看真实数据（完整 CRUD）。
+
+- 新增 `src/hooks/useAuth.ts`：
+  - 启动时调 `GET /api/me`，成功 → 已登录，401 → 游客
+  - `login(username, password)` → `POST /api/login`
+  - `logout()` → `POST /api/logout`
+  - 暴露 `user: User | null`、`loading: boolean`
+- 改造 `src/hooks/useAssets.ts`：
+  - 接收 `isLoggedIn` 参数
+  - 游客态：从 `mock.ts` 读取静态数据，CRUD 方法不可用（不暴露或返回 no-op）
+  - 登录态：走 `/api/assets`（现有逻辑不变）
+- UI 改动：
+  - Header 右上角：游客显示「登录」按钮，登录后显示用户名 + 「登出」按钮
+  - 点击「登录」弹出 Dialog（Shadcn Dialog + Input），包含用户名、密码输入框 + 提交
+  - 登录失败显示错误提示
+  - 游客模式下：资产列表隐藏「编辑」「删除」按钮，隐藏「新增资产」按钮
+  - 游客模式下：页面顶部展示一条提示 banner「当前为演示模式，登录后管理您的资产」
+
+**验收：** 未登录可浏览 mock 数据看板（只读）；登录后看到真实数据并可增删改查；登出后回到游客模式。
+
+---
+
 ## 6. UI 设计规范
 
 | 项目 | 规范 |
@@ -324,11 +410,14 @@ VibeCoding/
 │   │   ├── dashboard/
 │   │   │   ├── StatCard.tsx
 │   │   │   └── CategoryPieChart.tsx
+│   │   ├── auth/
+│   │   │   └── LoginDialog.tsx
 │   │   └── assets/
 │   │       ├── AssetTable.tsx
 │   │       └── AssetForm.tsx
 │   ├── hooks/
-│   │   └── useAssets.ts
+│   │   ├── useAssets.ts
+│   │   └── useAuth.ts
 │   ├── lib/
 │   │   ├── calc.ts
 │   │   ├── types.ts
@@ -343,16 +432,22 @@ VibeCoding/
 │   ├── go.sum
 │   ├── internal/
 │   │   ├── model/
-│   │   │   └── asset.go
+│   │   │   ├── asset.go
+│   │   │   └── user.go
 │   │   ├── store/
 │   │   │   ├── store.go
-│   │   │   └── store_test.go
+│   │   │   ├── store_test.go
+│   │   │   └── user.go
 │   │   ├── handler/
-│   │   │   └── assets.go
+│   │   │   ├── assets.go
+│   │   │   └── auth.go
 │   │   └── middleware/
-│   │       └── cors.go
+│   │       ├── cors.go
+│   │       └── auth.go
 │   ├── migrations/
-│   │   └── 001_create_assets.sql
+│   │   ├── 001_create_assets.sql
+│   │   ├── 002_create_users.sql
+│   │   └── 003_add_user_id_to_assets.sql
 │   └── seed.go
 ├── asset-dashboard-spec.md
 ├── CLAUDE.md
