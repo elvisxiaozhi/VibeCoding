@@ -17,6 +17,7 @@ export interface Asset {
   currentPrice: number
   quantity: number
   currency: string
+  purchasedAt: string
   createdAt: string
   updatedAt: string
 }

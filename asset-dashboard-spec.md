@@ -74,6 +74,7 @@ interface Asset {
   currentPrice: number;  // 当前市价（单价）
   quantity: number;      // 持有数量
   currency: string;      // 币种，默认 "CNY"
+  purchasedAt: string;   // ISO 8601 买入日期，如 "2025-06-15"
   createdAt: string;     // ISO 8601 创建时间
   updatedAt: string;     // ISO 8601 更新时间
 }
@@ -83,6 +84,8 @@ interface Asset {
 // 成本 = costBasis × quantity
 // 盈亏额 = 市值 - 成本
 // 盈亏率 = 盈亏额 / 成本 × 100%
+// 持有天数 = today - purchasedAt
+// 年化收益率 = ((1 + 盈亏率) ^ (365 / 持有天数)) - 1
 ```
 
 Go 后端对应 struct：
@@ -96,6 +99,7 @@ type Asset struct {
     CurrentPrice float64 `json:"currentPrice"`
     Quantity     float64 `json:"quantity"`
     Currency     string  `json:"currency"`
+    PurchasedAt  string  `json:"purchasedAt"`
     CreatedAt    string  `json:"createdAt"`
     UpdatedAt    string  `json:"updatedAt"`
 }
@@ -399,6 +403,29 @@ type Session struct {
 
 ---
 
+### Phase 6 — 年化收益率
+
+#### Step 18：买入日期 + 年化收益率
+
+**目标：** 资产支持录入买入日期，看板和列表展示年化收益率。
+
+**后端改动：**
+- 新增 goose 迁移：`assets` 表新增 `purchased_at TEXT` 列，默认值为 `created_at`
+- `model/asset.go`、`store/store.go`、`handler/assets.go` 三层同步新增该字段
+- Seed 数据补充 `purchased_at`（分散在过去 1-2 年内，让年化数据有意义）
+
+**前端改动：**
+- `src/lib/types.ts`：`Asset` 接口加 `purchasedAt` 字段
+- `src/lib/calc.ts`：新增 `annualizedReturn(asset)` 函数
+- `src/data/mock.ts`：Mock 数据补充 `purchasedAt`
+- 新增/编辑表单：增加日期选择器（原生 `input[type=date]`）
+- 资产列表：新增「年化收益率」列
+- 看板卡片：新增「组合年化」指标（基于总盈亏率 + 最早买入日期，或资产加权）
+
+**验收：** 新增资产时可选日期；列表展示年化收益率；编辑旧资产时默认显示 `created_at` 对应日期。
+
+---
+
 ## 6. UI 设计规范
 
 | 项目 | 规范 |
@@ -482,4 +509,5 @@ VibeCoding/
 - **前后端类型手动同步**：`Asset` 字段变更时两端都要改
 - **派生计算留在前端**：`calc.ts` 不搬到后端，后端只做存储和 CRUD
 - **所有金额计算使用原始数值**，仅在展示层格式化
+- **年化收益率留在前端计算**：后端只存 `purchasedAt`，不算年化
 - **每个 Step 结束后必须能完整运行**，不允许留下半成品

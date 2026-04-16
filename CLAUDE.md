@@ -38,6 +38,9 @@
 - ✅ **Step 16 — 资产列表 + CRUD**（见 `docs/steps/step-16-report.md`）
 - ✅ **Step 17 — 体验打磨**（见 `docs/steps/step-17-report.md`）
 
+### Phase 6 — 年化收益率
+- 🔲 **Step 18 — 买入日期 + 年化收益率**
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`

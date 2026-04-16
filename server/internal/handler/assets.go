@@ -68,6 +68,7 @@ type createRequest struct {
 	CurrentPrice float64 `json:"currentPrice"`
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
+	PurchasedAt  string  `json:"purchasedAt"`
 }
 
 // POST /api/assets — 新增资产
@@ -94,11 +95,15 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 		CurrentPrice: req.CurrentPrice,
 		Quantity:     req.Quantity,
 		Currency:     req.Currency,
+		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
 	if asset.Currency == "" {
 		asset.Currency = "CNY"
+	}
+	if asset.PurchasedAt == "" {
+		asset.PurchasedAt = now
 	}
 
 	if err := h.Store.CreateAsset(asset); err != nil {
@@ -116,6 +121,7 @@ type updateRequest struct {
 	CurrentPrice float64 `json:"currentPrice"`
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
+	PurchasedAt  string  `json:"purchasedAt"`
 }
 
 // PUT /api/assets/{id} — 更新资产
@@ -150,11 +156,15 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		CurrentPrice: req.CurrentPrice,
 		Quantity:     req.Quantity,
 		Currency:     req.Currency,
+		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    existing.CreatedAt,
 		UpdatedAt:    now,
 	}
 	if asset.Currency == "" {
 		asset.Currency = existing.Currency
+	}
+	if asset.PurchasedAt == "" {
+		asset.PurchasedAt = existing.PurchasedAt
 	}
 
 	if err := h.Store.UpdateAsset(asset); err != nil {

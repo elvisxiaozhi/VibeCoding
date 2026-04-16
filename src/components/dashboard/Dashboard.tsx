@@ -1,4 +1,5 @@
 import {
+  Calendar,
   DollarSign,
   Eye,
   Loader2,
@@ -10,7 +11,7 @@ import {
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
-import { pnlRate, pnlValue } from '@/lib/calc'
+import { pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
 import { CATEGORY_LABELS } from '@/lib/types'
 
 function formatCNY(n: number): string {
@@ -31,6 +32,8 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
 
   const pnlPercent = totalCost === 0 ? 0 : totalPnL / totalCost
   const pnlVariant = totalPnL >= 0 ? 'profit' : 'loss'
+  const annReturn = totalAnnualizedReturn(assets)
+  const annVariant = annReturn >= 0 ? 'profit' : 'loss'
 
   // Top 5 涨跌排行（按盈亏率排序）
   const top5 = [...assets]
@@ -70,7 +73,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
       )}
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-4 gap-6">
         <StatCard
           title="总资产"
           value={formatCNY(totalValue)}
@@ -87,6 +90,12 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
           title="投入本金"
           value={formatCNY(totalCost)}
           icon={DollarSign}
+        />
+        <StatCard
+          title="组合年化"
+          value={formatPercent(annReturn)}
+          icon={Calendar}
+          variant={annVariant}
         />
       </div>
 

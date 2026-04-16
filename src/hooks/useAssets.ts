@@ -76,6 +76,7 @@ export function useAssets(isLoggedIn: boolean) {
         currentPrice: patch.currentPrice ?? current.currentPrice,
         quantity: patch.quantity ?? current.quantity,
         currency: patch.currency ?? current.currency,
+        purchasedAt: patch.purchasedAt ?? current.purchasedAt,
       }
 
       try {

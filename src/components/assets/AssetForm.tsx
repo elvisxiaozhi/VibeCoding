@@ -29,6 +29,7 @@ export interface AssetFormData {
   currentPrice: number
   quantity: number
   currency: string
+  purchasedAt: string
 }
 
 interface FormErrors {
@@ -45,6 +46,7 @@ const EMPTY_FORM: AssetFormData = {
   currentPrice: 0,
   quantity: 0,
   currency: 'CNY',
+  purchasedAt: new Date().toISOString().slice(0, 10),
 }
 
 export function AssetForm({
@@ -68,6 +70,7 @@ export function AssetForm({
         currentPrice: asset.currentPrice,
         quantity: asset.quantity,
         currency: asset.currency,
+        purchasedAt: asset.purchasedAt ? asset.purchasedAt.slice(0, 10) : asset.createdAt.slice(0, 10),
       })
     } else {
       setForm(EMPTY_FORM)
@@ -199,6 +202,17 @@ export function AssetForm({
             {errors.quantity ? (
               <p className="text-xs text-[#ef4444]">{errors.quantity}</p>
             ) : null}
+          </div>
+
+          {/* 买入日期 */}
+          <div className="space-y-2">
+            <Label htmlFor="purchasedAt">买入日期</Label>
+            <Input
+              id="purchasedAt"
+              type="date"
+              value={form.purchasedAt}
+              onChange={(e) => setField('purchasedAt', e.target.value)}
+            />
           </div>
 
           <DialogFooter>

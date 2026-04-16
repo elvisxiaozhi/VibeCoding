@@ -43,6 +43,35 @@ export function totalPnLRate(assets: Asset[]): number {
   return cost === 0 ? 0 : totalPnLValue(assets) / cost
 }
 
+/** 单条资产持有天数 */
+export function holdingDays(asset: Asset): number {
+  const purchased = new Date(asset.purchasedAt)
+  const today = new Date()
+  const diffMs = today.getTime() - purchased.getTime()
+  return Math.max(Math.floor(diffMs / (1000 * 60 * 60 * 24)), 1)
+}
+
+/** 单条资产年化收益率 = ((1 + 盈亏率) ^ (365 / 持有天数)) - 1 */
+export function annualizedReturn(asset: Asset): number {
+  const rate = pnlRate(asset)
+  const days = holdingDays(asset)
+  if (days <= 0) return 0
+  return Math.pow(1 + rate, 365 / days) - 1
+}
+
+/** 组合年化收益率（按资产成本加权） */
+export function totalAnnualizedReturn(assets: Asset[]): number {
+  const totalCost = totalCostValue(assets)
+  if (totalCost === 0) return 0
+  let weightedSum = 0
+  for (const a of assets) {
+    const cost = costValue(a)
+    const weight = cost / totalCost
+    weightedSum += annualizedReturn(a) * weight
+  }
+  return weightedSum
+}
+
 export interface CategoryBreakdownItem {
   category: AssetCategory
   value: number

@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
-import { marketValue, pnlRate, pnlValue } from '@/lib/calc'
+import { annualizedReturn, marketValue, pnlRate, pnlValue } from '@/lib/calc'
 import type { Asset } from '@/lib/types'
 import { CATEGORY_LABELS } from '@/lib/types'
 
@@ -46,6 +46,7 @@ type SortKey =
   | 'marketValue'
   | 'pnl'
   | 'pnlRate'
+  | 'annualized'
 type SortDir = 'asc' | 'desc'
 
 function formatCNY(n: number): string {
@@ -77,6 +78,8 @@ function getSortValue(asset: Asset, key: SortKey): number | string {
       return pnlValue(asset)
     case 'pnlRate':
       return pnlRate(asset)
+    case 'annualized':
+      return annualizedReturn(asset)
   }
 }
 
@@ -95,6 +98,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'marketValue', label: '市值', align: 'right' },
   { key: 'pnl', label: '盈亏额', align: 'right' },
   { key: 'pnlRate', label: '盈亏率', align: 'right' },
+  { key: 'annualized', label: '年化收益率', align: 'right' },
 ]
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -265,8 +269,13 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
               const mv = marketValue(asset)
               const pnl = pnlValue(asset)
               const rate = pnlRate(asset)
+              const ann = annualizedReturn(asset)
               const isPositive = pnl >= 0
+              const isAnnPositive = ann >= 0
               const pnlColor = isPositive
+                ? 'text-[#22c55e]'
+                : 'text-[#ef4444]'
+              const annColor = isAnnPositive
                 ? 'text-[#22c55e]'
                 : 'text-[#ef4444]'
 
@@ -296,6 +305,9 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                   </TableCell>
                   <TableCell className={`text-right font-mono ${pnlColor}`}>
                     {formatPercent(rate)}
+                  </TableCell>
+                  <TableCell className={`text-right font-mono ${annColor}`}>
+                    {formatPercent(ann)}
                   </TableCell>
                   {isLoggedIn && (
                     <TableCell className="text-right">
