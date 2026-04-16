@@ -63,6 +63,9 @@ var mockAssets = []model.Asset{
 	{ID: "mock-sol", Symbol: "SOL Solana", Category: model.CategoryCrypto, CostBasis: 920, CurrentPrice: 1210, Quantity: 30, Currency: "CNY", PurchasedAt: "2025-09-01", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
 	{ID: "mock-cash-demand", Symbol: "活期存款", Category: model.CategoryCash, CostBasis: 1, CurrentPrice: 1, Quantity: 50000, Currency: "CNY", PurchasedAt: "2025-01-01", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
 	{ID: "mock-cash-mmf", Symbol: "货币基金", Category: model.CategoryCash, CostBasis: 1, CurrentPrice: 1.0023, Quantity: 80000, Currency: "CNY", PurchasedAt: "2025-04-10", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
+	{ID: "mock-cur-usd", Symbol: "USD 美金", Category: model.CategoryCurrency, CostBasis: 7.23, CurrentPrice: 7.28, Quantity: 10000, Currency: "CNY", PurchasedAt: "2025-03-15", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
+	{ID: "mock-cur-hkd", Symbol: "HKD 港币", Category: model.CategoryCurrency, CostBasis: 0.928, CurrentPrice: 0.935, Quantity: 50000, Currency: "CNY", PurchasedAt: "2025-05-20", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
+	{ID: "mock-cur-usdt", Symbol: "USDT", Category: model.CategoryCurrency, CostBasis: 7.2, CurrentPrice: 7.25, Quantity: 5000, Currency: "CNY", PurchasedAt: "2025-08-01", CreatedAt: "2026-03-01T00:00:00.000Z", UpdatedAt: "2026-04-01T00:00:00.000Z"},
 }
 
 // seed 创建默认用户，填充 Mock 数据，归属孤儿资产

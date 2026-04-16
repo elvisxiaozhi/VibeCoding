@@ -9,6 +9,7 @@ const COLORS: Record<string, string> = {
   etf: '#8b5cf6',
   crypto: '#f59e0b',
   cash: '#22c55e',
+  currency: '#06b6d4',
 }
 
 interface CategoryPieChartProps {

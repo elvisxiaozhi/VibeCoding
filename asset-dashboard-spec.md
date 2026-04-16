@@ -55,7 +55,7 @@
 
 ```typescript
 // 资产分类
-type AssetCategory = 'stock' | 'etf' | 'crypto' | 'cash';
+type AssetCategory = 'stock' | 'etf' | 'crypto' | 'cash' | 'currency';
 
 // 资产分类中文映射
 const CATEGORY_LABELS: Record<AssetCategory, string> = {
@@ -63,6 +63,18 @@ const CATEGORY_LABELS: Record<AssetCategory, string> = {
   etf: 'ETF',
   crypto: '加密货币',
   cash: '现金',
+  currency: '货币',
+};
+
+// 货币代码（仅用于 currency 分类的表单选择）
+type CurrencyCode = 'CNY' | 'HKD' | 'USD' | 'BTC' | 'USDC' | 'USDT';
+const CURRENCY_LABELS: Record<CurrencyCode, string> = {
+  CNY: '人民币',
+  HKD: '港币',
+  USD: '美金',
+  BTC: '比特币',
+  USDC: 'USDC',
+  USDT: 'USDT',
 };
 
 // 单条资产记录
@@ -423,6 +435,26 @@ type Session struct {
 - 看板卡片：新增「组合年化」指标（基于总盈亏率 + 最早买入日期，或资产加权）
 
 **验收：** 新增资产时可选日期；列表展示年化收益率；编辑旧资产时默认显示 `created_at` 对应日期。
+
+---
+
+### Phase 7 — 货币资产
+
+#### Step 19：货币资产类型 + 货币汇总
+
+**目标：** 支持录入多币种货币持仓，看板展示货币汇总。
+
+**后端改动：**
+- `handler/assets.go`：校验逻辑新增 `currency` 为合法 category（无需数据库迁移）
+
+**前端改动：**
+- `src/lib/types.ts`：AssetCategory 新增 `'currency'`；新增 `CurrencyCode` 类型 + `CURRENCY_LABELS` 映射
+- `src/data/mock.ts`：补充 2-3 条货币示例数据（如 USD、HKD、USDT）
+- `src/components/assets/AssetForm.tsx`：当分类选 `currency` 时，symbol 切换为货币下拉选择器（CNY/HKD/USD/BTC/USDC/USDT），costBasis 标签改为「买入汇率」，currentPrice 标签改为「当前汇率」
+- `src/components/dashboard/Dashboard.tsx`：新增「货币持仓」汇总区域，显示各币种持有量、CNY 等值、汇率盈亏
+- 资产列表：currency 分类正常展示
+
+**验收：** 可新增货币资产，看板展示货币持仓汇总，汇率盈亏正常计算。
 
 ---
 

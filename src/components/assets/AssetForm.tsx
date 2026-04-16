@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { Asset, AssetCategory } from '@/lib/types'
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/lib/types'
+import type { Asset, AssetCategory, CurrencyCode } from '@/lib/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER, CURRENCY_CODES, CURRENCY_LABELS } from '@/lib/types'
 
 interface AssetFormProps {
   open: boolean
@@ -59,6 +59,8 @@ export function AssetForm({
   const [form, setForm] = useState<AssetFormData>(EMPTY_FORM)
   const [errors, setErrors] = useState<FormErrors>({})
 
+  const isCurrency = form.category === 'currency'
+
   // 打开弹窗时：编辑模式预填充，新增模式重置
   useEffect(() => {
     if (!open) return
@@ -80,9 +82,9 @@ export function AssetForm({
 
   function validate(): boolean {
     const e: FormErrors = {}
-    if (!form.symbol.trim()) e.symbol = '请输入资产代码/名称'
-    if (form.costBasis <= 0) e.costBasis = '成本价必须大于 0'
-    if (form.currentPrice <= 0) e.currentPrice = '现价必须大于 0'
+    if (!form.symbol.trim()) e.symbol = isCurrency ? '请选择货币' : '请输入资产代码/名称'
+    if (form.costBasis <= 0) e.costBasis = isCurrency ? '买入汇率必须大于 0' : '成本价必须大于 0'
+    if (form.currentPrice <= 0) e.currentPrice = isCurrency ? '当前汇率必须大于 0' : '现价必须大于 0'
     if (form.quantity <= 0) e.quantity = '数量必须大于 0'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -99,6 +101,28 @@ export function AssetForm({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  function handleCategoryChange(cat: AssetCategory) {
+    setField('category', cat)
+    // 切换到货币分类时，重置 symbol 为第一个货币
+    if (cat === 'currency' && form.category !== 'currency') {
+      setField('symbol', 'CNY 人民币')
+    }
+    // 从货币切换到其他分类时，清空 symbol
+    if (cat !== 'currency' && form.category === 'currency') {
+      setField('symbol', '')
+    }
+  }
+
+  function handleCurrencySelect(code: CurrencyCode) {
+    const label = CURRENCY_LABELS[code]
+    setField('symbol', `${code} ${label}`)
+  }
+
+  // 从 symbol 中提取当前选中的货币代码
+  const selectedCurrencyCode = isCurrency
+    ? (CURRENCY_CODES.find((c) => form.symbol.startsWith(c)) ?? 'CNY')
+    : undefined
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
@@ -114,29 +138,13 @@ export function AssetForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 代码/名称 */}
-          <div className="space-y-2">
-            <Label htmlFor="symbol">资产代码/名称</Label>
-            <Input
-              id="symbol"
-              placeholder="如 AAPL、BTC 比特币"
-              value={form.symbol}
-              onChange={(e) => setField('symbol', e.target.value)}
-            />
-            {errors.symbol ? (
-              <p className="text-xs text-[#ef4444]">{errors.symbol}</p>
-            ) : null}
-          </div>
-
           {/* 分类 */}
           <div className="space-y-2">
             <Label htmlFor="category">分类</Label>
             <select
               id="category"
               value={form.category}
-              onChange={(e) =>
-                setField('category', e.target.value as AssetCategory)
-              }
+              onChange={(e) => handleCategoryChange(e.target.value as AssetCategory)}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {CATEGORY_ORDER.map((cat) => (
@@ -147,10 +155,39 @@ export function AssetForm({
             </select>
           </div>
 
-          {/* 成本价 + 现价 */}
+          {/* 代码/名称 或 货币选择 */}
+          <div className="space-y-2">
+            <Label htmlFor="symbol">{isCurrency ? '货币' : '资产代码/名称'}</Label>
+            {isCurrency ? (
+              <select
+                id="symbol"
+                value={selectedCurrencyCode}
+                onChange={(e) => handleCurrencySelect(e.target.value as CurrencyCode)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {CURRENCY_CODES.map((code) => (
+                  <option key={code} value={code} className="bg-[#1a1a1a]">
+                    {code} {CURRENCY_LABELS[code]}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                id="symbol"
+                placeholder="如 AAPL、BTC 比特币"
+                value={form.symbol}
+                onChange={(e) => setField('symbol', e.target.value)}
+              />
+            )}
+            {errors.symbol ? (
+              <p className="text-xs text-[#ef4444]">{errors.symbol}</p>
+            ) : null}
+          </div>
+
+          {/* 成本价/买入汇率 + 现价/当前汇率 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="costBasis">成本价</Label>
+              <Label htmlFor="costBasis">{isCurrency ? '买入汇率' : '成本价'}</Label>
               <Input
                 id="costBasis"
                 type="number"
@@ -167,7 +204,7 @@ export function AssetForm({
               ) : null}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currentPrice">现价</Label>
+              <Label htmlFor="currentPrice">{isCurrency ? '当前汇率' : '现价'}</Label>
               <Input
                 id="currentPrice"
                 type="number"
@@ -187,7 +224,7 @@ export function AssetForm({
 
           {/* 数量 */}
           <div className="space-y-2">
-            <Label htmlFor="quantity">数量</Label>
+            <Label htmlFor="quantity">{isCurrency ? '持有数量' : '数量'}</Label>
             <Input
               id="quantity"
               type="number"

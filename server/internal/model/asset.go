@@ -4,10 +4,11 @@ package model
 type AssetCategory = string
 
 const (
-	CategoryStock  AssetCategory = "stock"
-	CategoryETF    AssetCategory = "etf"
-	CategoryCrypto AssetCategory = "crypto"
-	CategoryCash   AssetCategory = "cash"
+	CategoryStock    AssetCategory = "stock"
+	CategoryETF      AssetCategory = "etf"
+	CategoryCrypto   AssetCategory = "crypto"
+	CategoryCash     AssetCategory = "cash"
+	CategoryCurrency AssetCategory = "currency"
 )
 
 // Asset 单条资产记录，JSON tag 与前端 Asset interface 一一对应

@@ -1,5 +1,6 @@
 import {
   Calendar,
+  Coins,
   DollarSign,
   Eye,
   Loader2,
@@ -11,7 +12,7 @@ import {
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
-import { pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
+import { marketValue, pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
 import { CATEGORY_LABELS } from '@/lib/types'
 
 function formatCNY(n: number): string {
@@ -39,6 +40,9 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
   const top5 = [...assets]
     .sort((a, b) => pnlRate(b) - pnlRate(a))
     .slice(0, 5)
+
+  // 货币持仓
+  const currencyAssets = assets.filter((a) => a.category === 'currency')
 
   if (loading) {
     return (
@@ -98,6 +102,42 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
           variant={annVariant}
         />
       </div>
+
+      {/* 货币持仓 */}
+      {currencyAssets.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
+          <div className="mb-4 flex items-center gap-2">
+            <Coins className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold text-white">货币持仓</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {currencyAssets.map((asset) => {
+              const mv = marketValue(asset)
+              const pnl = pnlValue(asset)
+              const isPositive = pnl >= 0
+              return (
+                <div
+                  key={asset.id}
+                  className="rounded-lg border border-border/30 bg-background/50 p-4"
+                >
+                  <p className="text-sm font-medium text-white">{asset.symbol}</p>
+                  <p className="mt-1 font-mono text-lg text-white">
+                    {asset.quantity.toLocaleString('zh-CN')}
+                  </p>
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <p className="font-mono text-xs text-muted-foreground">
+                      ≈ {formatCNY(mv)}
+                    </p>
+                    <p className={`font-mono text-xs ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                      {isPositive ? '+' : ''}{formatCNY(pnl)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 分类占比饼图 + 涨跌排行 */}
       <div className="grid grid-cols-2 gap-6">

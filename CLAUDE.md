@@ -41,6 +41,9 @@
 ### Phase 6 — 年化收益率
 - ✅ **Step 18 — 买入日期 + 年化收益率**（见 `docs/steps/step-18-report.md`）
 
+### Phase 7 — 货币资产
+- 🔲 **Step 19 — 货币资产类型 + 货币汇总**
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`

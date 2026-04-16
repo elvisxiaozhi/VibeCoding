@@ -206,10 +206,10 @@ func validateCreate(req createRequest) error {
 		return errors.New("symbol is required")
 	}
 	switch req.Category {
-	case model.CategoryStock, model.CategoryETF, model.CategoryCrypto, model.CategoryCash:
+	case model.CategoryStock, model.CategoryETF, model.CategoryCrypto, model.CategoryCash, model.CategoryCurrency:
 		// valid
 	default:
-		return errors.New("category must be one of: stock, etf, crypto, cash")
+		return errors.New("category must be one of: stock, etf, crypto, cash, currency")
 	}
 	if req.Quantity <= 0 {
 		return errors.New("quantity must be > 0")
