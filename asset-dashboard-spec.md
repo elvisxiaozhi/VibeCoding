@@ -77,11 +77,21 @@ const CURRENCY_LABELS: Record<CurrencyCode, string> = {
   USDT: 'USDT',
 };
 
+// 所属市场/板块
+type MarketType = 'cn' | 'hk' | 'us' | 'crypto';
+const MARKET_LABELS: Record<MarketType, string> = {
+  cn: '人民币资产',
+  hk: '港股资产',
+  us: '美股资产',
+  crypto: '加密货币资产',
+};
+
 // 单条资产记录
 interface Asset {
   id: string;            // 唯一 ID（使用 crypto.randomUUID()）
   symbol: string;        // 资产代码/名称，如 "AAPL"、"BTC"
   category: AssetCategory;
+  market: MarketType;    // 所属市场/板块
   costBasis: number;     // 持仓成本价（单价）
   currentPrice: number;  // 当前市价（单价）
   quantity: number;      // 持有数量
@@ -107,6 +117,7 @@ type Asset struct {
     ID           string  `json:"id"`
     Symbol       string  `json:"symbol"`
     Category     string  `json:"category"`
+    Market       string  `json:"market"`
     CostBasis    float64 `json:"costBasis"`
     CurrentPrice float64 `json:"currentPrice"`
     Quantity     float64 `json:"quantity"`
@@ -455,6 +466,29 @@ type Session struct {
 - 资产列表：currency 分类正常展示
 
 **验收：** 可新增货币资产，看板展示货币持仓汇总，汇率盈亏正常计算。
+
+---
+
+#### Step 20：资产板块分类展示
+
+**目标：** 资产按所属市场/板块分组展示，看板和列表均按板块汇总。
+
+**后端改动：**
+- 新增 goose 迁移：`assets` 表新增 `market TEXT` 列，默认值 `'cn'`
+- 已有数据根据 category 推断 market（crypto → `'crypto'`，其余 → `'cn'`）
+- `model/asset.go`：新增 Market 字段 + MarketCn/MarketHk/MarketUs/MarketCrypto 常量
+- `store/store.go`：所有 SQL 同步新增 market
+- `handler/assets.go`：createRequest/updateRequest 新增 Market 字段 + 校验
+
+**前端改动：**
+- `src/lib/types.ts`：Asset 接口加 `market` 字段；新增 `MarketType` + `MARKET_LABELS` + `MARKET_ORDER`
+- `src/data/mock.ts`：所有 Mock 数据补充 `market`
+- `src/hooks/useAssets.ts`：AssetDraft merge 补充 market
+- `src/components/assets/AssetForm.tsx`：新增「所属市场」选择器
+- `src/components/assets/AssetTable.tsx`：按 market 分组展示，每组显示标题 + 组内小计（市值 + 盈亏）
+- `src/components/dashboard/Dashboard.tsx`：删除单独的「货币持仓」区域，新增「板块汇总」区域（每个有数据的 market 一张小卡片：市值 + 盈亏率）
+
+**验收：** 资产列表按板块分组，看板展示板块汇总，新增/编辑表单可选所属市场。
 
 ---
 

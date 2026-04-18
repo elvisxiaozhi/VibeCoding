@@ -33,9 +33,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
-import { annualizedReturn, marketValue, pnlRate, pnlValue } from '@/lib/calc'
-import type { Asset } from '@/lib/types'
-import { CATEGORY_LABELS } from '@/lib/types'
+import { annualizedReturn, marketValue, pnlRate, pnlValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import type { Asset, MarketType } from '@/lib/types'
+import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
 type SortKey =
   | 'symbol'
@@ -132,20 +132,36 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
     undefined,
   )
 
-  const sorted = useMemo(() => {
-    const list = [...assets]
-    list.sort((a, b) => {
-      const va = getSortValue(a, sortKey)
-      const vb = getSortValue(b, sortKey)
-      let cmp: number
-      if (typeof va === 'string' && typeof vb === 'string') {
-        cmp = va.localeCompare(vb, 'zh-CN')
-      } else {
-        cmp = (va as number) - (vb as number)
-      }
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-    return list
+  // 按板块分组，每组内按当前排序键排序
+  const groupedByMarket = useMemo(() => {
+    const groups = new Map<MarketType, Asset[]>()
+    for (const m of MARKET_ORDER) groups.set(m, [])
+    for (const a of assets) {
+      const market = (a.market || 'cn') as MarketType
+      const list = groups.get(market)
+      if (list) list.push(a)
+      else groups.set(market, [a])
+    }
+
+    // 排序每组内的资产
+    for (const [, list] of groups) {
+      list.sort((a, b) => {
+        const va = getSortValue(a, sortKey)
+        const vb = getSortValue(b, sortKey)
+        let cmp: number
+        if (typeof va === 'string' && typeof vb === 'string') {
+          cmp = va.localeCompare(vb, 'zh-CN')
+        } else {
+          cmp = (va as number) - (vb as number)
+        }
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+
+    // 只返回非空组
+    return MARKET_ORDER
+      .filter((m) => (groups.get(m)?.length ?? 0) > 0)
+      .map((m) => ({ market: m, assets: groups.get(m)! }))
   }, [assets, sortKey, sortDir])
 
   function handleSort(key: SortKey) {
@@ -246,97 +262,134 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
         </div>
       )}
 
-      {/* 表格 */}
-      <div className="rounded-xl border border-border/50 bg-card shadow">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {COLUMNS.map((col) => (
-                <TableHead
-                  key={col.key}
-                  className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
-                  onClick={() => handleSort(col.key)}
-                >
-                  {col.label}
-                  <SortIcon active={sortKey === col.key} dir={sortDir} />
-                </TableHead>
-              ))}
-              {isLoggedIn && <TableHead className="text-right">操作</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.map((asset) => {
-              const mv = marketValue(asset)
-              const pnl = pnlValue(asset)
-              const rate = pnlRate(asset)
-              const ann = annualizedReturn(asset)
-              const isPositive = pnl >= 0
-              const isAnnPositive = ann >= 0
-              const pnlColor = isPositive
-                ? 'text-[#22c55e]'
-                : 'text-[#ef4444]'
-              const annColor = isAnnPositive
-                ? 'text-[#22c55e]'
-                : 'text-[#ef4444]'
+      {/* 按板块分组的表格 */}
+      {groupedByMarket.map(({ market, assets: groupAssets }) => {
+        const groupMV = totalMarketValue(groupAssets)
+        const groupCost = totalCostValue(groupAssets)
+        const groupPnL = totalPnLValue(groupAssets)
+        const groupPnLRate = groupCost === 0 ? 0 : groupPnL / groupCost
+        const isGroupPositive = groupPnL >= 0
 
-              return (
-                <TableRow key={asset.id}>
-                  <TableCell className="font-medium text-white">
-                    {asset.symbol}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {CATEGORY_LABELS[asset.category]}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-white">
-                    {asset.quantity}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-white">
-                    {formatCNY(asset.costBasis)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-white">
-                    {formatCNY(asset.currentPrice)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-white">
-                    {formatCNY(mv)}
-                  </TableCell>
-                  <TableCell className={`text-right font-mono ${pnlColor}`}>
-                    {isPositive ? '+' : ''}
-                    {formatCNY(pnl)}
-                  </TableCell>
-                  <TableCell className={`text-right font-mono ${pnlColor}`}>
-                    {formatPercent(rate)}
-                  </TableCell>
-                  <TableCell className={`text-right font-mono ${annColor}`}>
-                    {formatPercent(ann)}
-                  </TableCell>
-                  {isLoggedIn && (
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(asset)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
-                          onClick={() => handleDeleteClick(asset)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
+        return (
+          <div key={market} className="space-y-2">
+            {/* 板块标题 + 汇总 */}
+            <div className="flex items-baseline justify-between px-1">
+              <h3 className="text-sm font-semibold text-white">
+                {MARKET_LABELS[market]}
+              </h3>
+              <div className="flex items-baseline gap-4 text-xs">
+                <span className="text-muted-foreground">
+                  市值 <span className="font-mono text-white">{formatCNY(groupMV)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  盈亏{' '}
+                  <span className={`font-mono ${isGroupPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                    {isGroupPositive ? '+' : ''}{formatCNY(groupPnL)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground">
+                  盈亏率{' '}
+                  <span className={`font-mono ${isGroupPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                    {formatPercent(groupPnLRate)}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* 表格 */}
+            <div className="rounded-xl border border-border/50 bg-card shadow">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {COLUMNS.map((col) => (
+                      <TableHead
+                        key={col.key}
+                        className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
+                        onClick={() => handleSort(col.key)}
+                      >
+                        {col.label}
+                        <SortIcon active={sortKey === col.key} dir={sortDir} />
+                      </TableHead>
+                    ))}
+                    {isLoggedIn && <TableHead className="text-right">操作</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupAssets.map((asset) => {
+                    const mv = marketValue(asset)
+                    const pnl = pnlValue(asset)
+                    const rate = pnlRate(asset)
+                    const ann = annualizedReturn(asset)
+                    const isPositive = pnl >= 0
+                    const isAnnPositive = ann >= 0
+                    const pnlColor = isPositive
+                      ? 'text-[#22c55e]'
+                      : 'text-[#ef4444]'
+                    const annColor = isAnnPositive
+                      ? 'text-[#22c55e]'
+                      : 'text-[#ef4444]'
+
+                    return (
+                      <TableRow key={asset.id}>
+                        <TableCell className="font-medium text-white">
+                          {asset.symbol}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {CATEGORY_LABELS[asset.category]}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-white">
+                          {asset.quantity}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-white">
+                          {formatCNY(asset.costBasis)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-white">
+                          {formatCNY(asset.currentPrice)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-white">
+                          {formatCNY(mv)}
+                        </TableCell>
+                        <TableCell className={`text-right font-mono ${pnlColor}`}>
+                          {isPositive ? '+' : ''}
+                          {formatCNY(pnl)}
+                        </TableCell>
+                        <TableCell className={`text-right font-mono ${pnlColor}`}>
+                          {formatPercent(rate)}
+                        </TableCell>
+                        <TableCell className={`text-right font-mono ${annColor}`}>
+                          {formatPercent(ann)}
+                        </TableCell>
+                        {isLoggedIn && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleEdit(asset)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
+                                onClick={() => handleDeleteClick(asset)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )
+      })}
 
       {/* 新增/编辑表单弹窗 */}
       {isLoggedIn && (

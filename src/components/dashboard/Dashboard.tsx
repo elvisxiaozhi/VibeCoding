@@ -1,6 +1,5 @@
 import {
   Calendar,
-  Coins,
   DollarSign,
   Eye,
   Loader2,
@@ -12,8 +11,9 @@ import {
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
-import { marketValue, pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
-import { CATEGORY_LABELS } from '@/lib/types'
+import { pnlRate, pnlValue, totalAnnualizedReturn, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import type { MarketType } from '@/lib/types'
+import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
 function formatCNY(n: number): string {
   return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -41,8 +41,13 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
     .sort((a, b) => pnlRate(b) - pnlRate(a))
     .slice(0, 5)
 
-  // 货币持仓
-  const currencyAssets = assets.filter((a) => a.category === 'currency')
+  // 按板块汇总
+  const marketSummary = MARKET_ORDER
+    .map((m) => {
+      const group = assets.filter((a) => (a.market || 'cn') === m)
+      return { market: m, assets: group }
+    })
+    .filter(({ assets: g }) => g.length > 0)
 
   if (loading) {
     return (
@@ -103,39 +108,39 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
         />
       </div>
 
-      {/* 货币持仓 */}
-      {currencyAssets.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
-          <div className="mb-4 flex items-center gap-2">
-            <Coins className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold text-white">货币持仓</h3>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            {currencyAssets.map((asset) => {
-              const mv = marketValue(asset)
-              const pnl = pnlValue(asset)
-              const isPositive = pnl >= 0
-              return (
-                <div
-                  key={asset.id}
-                  className="rounded-lg border border-border/30 bg-background/50 p-4"
-                >
-                  <p className="text-sm font-medium text-white">{asset.symbol}</p>
-                  <p className="mt-1 font-mono text-lg text-white">
-                    {asset.quantity.toLocaleString('zh-CN')}
-                  </p>
-                  <div className="mt-1 flex items-baseline justify-between">
-                    <p className="font-mono text-xs text-muted-foreground">
-                      ≈ {formatCNY(mv)}
-                    </p>
-                    <p className={`font-mono text-xs ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                      {isPositive ? '+' : ''}{formatCNY(pnl)}
-                    </p>
-                  </div>
+      {/* 板块资产汇总 */}
+      {marketSummary.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {marketSummary.map(({ market, assets: group }) => {
+            const mv = totalMarketValue(group)
+            const cost = totalCostValue(group)
+            const pnl = totalPnLValue(group)
+            const rate = cost === 0 ? 0 : pnl / cost
+            const isPositive = pnl >= 0
+            const ratio = totalValue === 0 ? 0 : mv / totalValue
+
+            return (
+              <div
+                key={market}
+                className="rounded-xl border border-border/50 bg-card p-4 shadow"
+              >
+                <p className="text-xs text-muted-foreground">
+                  {MARKET_LABELS[market as MarketType]}
+                </p>
+                <p className="mt-1 font-mono text-lg font-semibold text-white">
+                  {formatCNY(mv)}
+                </p>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    占比 {(ratio * 100).toFixed(1)}%
+                  </span>
+                  <span className={`font-mono text-xs ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                    {formatPercent(rate)}
+                  </span>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { Asset, AssetCategory, CurrencyCode } from '@/lib/types'
-import { CATEGORY_LABELS, CATEGORY_ORDER, CURRENCY_CODES, CURRENCY_LABELS } from '@/lib/types'
+import type { Asset, AssetCategory, CurrencyCode, MarketType } from '@/lib/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER, CURRENCY_CODES, CURRENCY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
 interface AssetFormProps {
   open: boolean
@@ -25,6 +25,7 @@ interface AssetFormProps {
 export interface AssetFormData {
   symbol: string
   category: AssetCategory
+  market: MarketType
   costBasis: number
   currentPrice: number
   quantity: number
@@ -42,6 +43,7 @@ interface FormErrors {
 const EMPTY_FORM: AssetFormData = {
   symbol: '',
   category: 'stock',
+  market: 'cn',
   costBasis: 0,
   currentPrice: 0,
   quantity: 0,
@@ -68,6 +70,7 @@ export function AssetForm({
       setForm({
         symbol: asset.symbol,
         category: asset.category as AssetCategory,
+        market: asset.market as MarketType,
         costBasis: asset.costBasis,
         currentPrice: asset.currentPrice,
         quantity: asset.quantity,
@@ -150,6 +153,23 @@ export function AssetForm({
               {CATEGORY_ORDER.map((cat) => (
                 <option key={cat} value={cat} className="bg-[#1a1a1a]">
                   {CATEGORY_LABELS[cat]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 板块 */}
+          <div className="space-y-2">
+            <Label htmlFor="market">板块</Label>
+            <select
+              id="market"
+              value={form.market}
+              onChange={(e) => setField('market', e.target.value as MarketType)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {MARKET_ORDER.map((m) => (
+                <option key={m} value={m} className="bg-[#1a1a1a]">
+                  {MARKET_LABELS[m]}
                 </option>
               ))}
             </select>

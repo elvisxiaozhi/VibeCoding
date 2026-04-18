@@ -64,6 +64,7 @@ func (h *Assets) get(w http.ResponseWriter, r *http.Request) {
 type createRequest struct {
 	Symbol       string  `json:"symbol"`
 	Category     string  `json:"category"`
+	Market       string  `json:"market"`
 	CostBasis    float64 `json:"costBasis"`
 	CurrentPrice float64 `json:"currentPrice"`
 	Quantity     float64 `json:"quantity"`
@@ -91,6 +92,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 		UserID:       userID,
 		Symbol:       req.Symbol,
 		Category:     req.Category,
+		Market:       req.Market,
 		CostBasis:    req.CostBasis,
 		CurrentPrice: req.CurrentPrice,
 		Quantity:     req.Quantity,
@@ -101,6 +103,9 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 	}
 	if asset.Currency == "" {
 		asset.Currency = "CNY"
+	}
+	if asset.Market == "" {
+		asset.Market = model.MarketCn
 	}
 	if asset.PurchasedAt == "" {
 		asset.PurchasedAt = now
@@ -117,6 +122,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 type updateRequest struct {
 	Symbol       string  `json:"symbol"`
 	Category     string  `json:"category"`
+	Market       string  `json:"market"`
 	CostBasis    float64 `json:"costBasis"`
 	CurrentPrice float64 `json:"currentPrice"`
 	Quantity     float64 `json:"quantity"`
@@ -152,6 +158,7 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		UserID:       userID,
 		Symbol:       req.Symbol,
 		Category:     req.Category,
+		Market:       req.Market,
 		CostBasis:    req.CostBasis,
 		CurrentPrice: req.CurrentPrice,
 		Quantity:     req.Quantity,
@@ -162,6 +169,9 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if asset.Currency == "" {
 		asset.Currency = existing.Currency
+	}
+	if asset.Market == "" {
+		asset.Market = existing.Market
 	}
 	if asset.PurchasedAt == "" {
 		asset.PurchasedAt = existing.PurchasedAt

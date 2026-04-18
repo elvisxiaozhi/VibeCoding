@@ -72,6 +72,7 @@ export function useAssets(isLoggedIn: boolean) {
       const merged: AssetDraft = {
         symbol: patch.symbol ?? current.symbol,
         category: patch.category ?? current.category,
+        market: patch.market ?? current.market,
         costBasis: patch.costBasis ?? current.costBasis,
         currentPrice: patch.currentPrice ?? current.currentPrice,
         quantity: patch.quantity ?? current.quantity,
