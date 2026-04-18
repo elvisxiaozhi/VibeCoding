@@ -43,6 +43,7 @@
 
 ### Phase 7 — 货币资产
 - ✅ **Step 19 — 货币资产类型 + 货币汇总**（见 `docs/steps/step-19-report.md`）
+- ✅ **Step 20 — 资产板块分类展示**（见 `docs/steps/step-20-report.md`）
 
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
