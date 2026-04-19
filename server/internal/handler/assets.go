@@ -69,6 +69,7 @@ type createRequest struct {
 	CurrentPrice float64 `json:"currentPrice"`
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
+	Dividends    float64 `json:"dividends"`
 	PurchasedAt  string  `json:"purchasedAt"`
 }
 
@@ -97,6 +98,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 		CurrentPrice: req.CurrentPrice,
 		Quantity:     req.Quantity,
 		Currency:     req.Currency,
+		Dividends:    req.Dividends,
 		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -127,6 +129,7 @@ type updateRequest struct {
 	CurrentPrice float64 `json:"currentPrice"`
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
+	Dividends    float64 `json:"dividends"`
 	PurchasedAt  string  `json:"purchasedAt"`
 }
 
@@ -163,6 +166,7 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		CurrentPrice: req.CurrentPrice,
 		Quantity:     req.Quantity,
 		Currency:     req.Currency,
+		Dividends:    req.Dividends,
 		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    existing.CreatedAt,
 		UpdatedAt:    now,
@@ -220,9 +224,6 @@ func validateCreate(req createRequest) error {
 		// valid
 	default:
 		return errors.New("category must be one of: stock, etf, crypto, cash, currency")
-	}
-	if req.Quantity == 0 {
-		return errors.New("quantity must not be 0")
 	}
 	return nil
 }

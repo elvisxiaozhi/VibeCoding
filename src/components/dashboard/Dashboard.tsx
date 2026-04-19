@@ -12,7 +12,7 @@ import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
-import { annualizedReturn, type CategoryBreakdownItem, costValue, marketValue, pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
+import { annualizedReturn, type CategoryBreakdownItem, costValue, dividendValue, marketValue, pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType } from '@/lib/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
@@ -43,17 +43,20 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
   const { assets, loading } = useAssets(isLoggedIn)
   const { rates } = useExchangeRates()
 
-  // 只统计持仓（qty > 0），排除卖出记录
+  // 只统计持仓（qty > 0），排除卖出和分红记录
   const holdings = assets.filter((a) => a.quantity > 0)
+  // 分红记录（qty = 0, dividends > 0）
+  const divRecords = assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
 
-  // 汇率换算后的总值（人民币）
+  // 汇率换算后的总值（人民币），含分红
   const totalValueCNY = holdings.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
   const totalCostCNY = holdings.reduce((s, a) => s + assetCostInCNY(a, rates), 0)
-  const totalPnLCNY = totalValueCNY - totalCostCNY
+  const totalDivCNY = divRecords.reduce((s, a) => s + toCNY(dividendValue(a), a.currency, rates), 0)
+  const totalPnLCNY = totalValueCNY - totalCostCNY + totalDivCNY
 
   const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
   const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
-  const annReturn = totalAnnualizedReturn(holdings)
+  const annReturn = totalAnnualizedReturn(holdings, totalDivCNY)
   const annVariant = annReturn >= 0 ? 'profit' : 'loss'
 
   // 按分类汇总（人民币换算）
@@ -171,7 +174,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                   <span className="text-xs text-muted-foreground">
                     占比 {(ratio * 100).toFixed(1)}%
                   </span>
-                  <span className={`font-mono text-xs ${isAnnPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                  <span className={`font-mono text-xs ${isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                     年化 {formatPercent(ann)}
                   </span>
                 </div>
@@ -209,7 +212,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                   </div>
                   <div className="ml-4 text-right">
                     <p
-                      className={`font-mono text-sm ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}
+                      className={`font-mono text-sm ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                     >
                       {isPositive ? '+' : ''}
                       {formatMoney(pnl, asset.currency)}
@@ -220,7 +223,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                       </p>
                     )}
                     <p
-                      className={`font-mono text-xs ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}
+                      className={`font-mono text-xs ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                     >
                       {formatPercent(rate)}
                     </p>
@@ -251,7 +254,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                   {CATEGORY_LABELS[asset.category]}
                 </p>
                 <p
-                  className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}
+                  className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                 >
                   {formatPercent(ann)}
                 </p>

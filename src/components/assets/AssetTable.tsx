@@ -48,6 +48,7 @@ type SortKey =
   | 'costBasis'
   | 'currentPrice'
   | 'marketValue'
+  | 'dividends'
   | 'pnl'
   | 'annualized'
 type SortDir = 'asc' | 'desc'
@@ -62,11 +63,14 @@ interface SymbolGroup {
   openLots: Asset[]
   /** 卖出记录 (qty < 0) */
   sellRecords: Asset[]
-  /** 全部记录（用于展开明细） */
+  /** 分红记录 (qty = 0) */
+  dividendRecords: Asset[]
+  /** 全部记录（用于展开明细，按日期排序） */
   allRecords: Asset[]
   totalQuantity: number
   weightedCostBasis: number
   totalMV: number
+  totalDividends: number
   totalPnL: number
   annReturn: number
 }
@@ -89,6 +93,8 @@ function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
       return group.currentPrice
     case 'marketValue':
       return group.totalMV
+    case 'dividends':
+      return group.totalDividends
     case 'pnl':
       return group.totalPnL
     case 'annualized':
@@ -112,16 +118,18 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
 
     const openLots = allRecords.filter((a) => a.quantity > 0)
     const sellRecords = allRecords.filter((a) => a.quantity < 0)
+    const dividendRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
 
-    // 聚合只算持仓
+    // 聚合只算持仓；分红从 dividendRecords 汇总
     const totalQty = openLots.reduce((s, a) => s + a.quantity, 0)
     const totalCost = openLots.reduce((s, a) => s + costValue(a), 0)
     const totalMV = totalMarketValue(openLots)
-    const totalPnL = totalPnLValue(openLots)
-    const annReturn = totalAnnualizedReturn(openLots)
+    const totalDiv = dividendRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
+    const totalPnL = totalPnLValue(openLots) + totalDiv
+    const annReturn = totalAnnualizedReturn(openLots, totalDiv)
 
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
-    const representative = openLots[0] ?? sellRecords[0]
+    const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
 
     groups.push({
       symbol,
@@ -130,10 +138,12 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
       currentPrice: openLots.length > 0 ? representative.currentPrice : 0,
       openLots,
       sellRecords,
+      dividendRecords,
       allRecords,
       totalQuantity: totalQty,
       weightedCostBasis: totalQty === 0 ? 0 : totalCost / totalQty,
       totalMV,
+      totalDividends: totalDiv,
       totalPnL,
       annReturn,
     })
@@ -154,6 +164,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'costBasis', label: '成本价', align: 'right' },
   { key: 'currentPrice', label: '现价', align: 'right' },
   { key: 'marketValue', label: '市值', align: 'right' },
+  { key: 'dividends', label: '分红', align: 'right' },
   { key: 'pnl', label: '盈亏额', align: 'right' },
   { key: 'annualized', label: '年化收益率', align: 'right' },
 ]
@@ -353,13 +364,13 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                 </span>
                 <span className="text-muted-foreground">
                   盈亏{' '}
-                  <span className={`font-mono ${isGroupPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                  <span className={`font-mono ${isGroupPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                     {isGroupPositive ? '+' : ''}{formatMoney(groupPnLCNY, 'CNY')}
                   </span>
                 </span>
                 <span className="text-muted-foreground">
                   年化{' '}
-                  <span className={`font-mono ${isGroupAnnPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                  <span className={`font-mono ${isGroupAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                     {formatPercent(groupAnn)}
                   </span>
                 </span>
@@ -389,9 +400,9 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                     const isClosed = group.openLots.length === 0
                     const isPositive = group.totalPnL >= 0
                     const isAnnPositive = group.annReturn >= 0
-                    const pnlColor = isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'
-                    const annColor = isAnnPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'
-                    const totalRecords = group.openLots.length + group.sellRecords.length
+                    const pnlColor = isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
+                    const annColor = isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
+                    const totalRecords = group.openLots.length + group.sellRecords.length + group.dividendRecords.length
                     const hasMultiple = totalRecords > 1
                     const isExpanded = expanded.has(group.symbol)
 
@@ -427,6 +438,7 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                   {group.openLots.length > 0 && `${group.openLots.length}买`}
                                   {group.openLots.length > 0 && group.sellRecords.length > 0 && ' '}
                                   {group.sellRecords.length > 0 && `${group.sellRecords.length}卖`}
+                                  {group.dividendRecords.length > 0 && ` ${group.dividendRecords.length}息`}
                                 </span>
                               )}
                             </div>
@@ -455,7 +467,13 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed ? (isRealizedPositive ? 'text-[#22c55e]' : 'text-[#ef4444]') : pnlColor}`}>
+                          <TableCell className="text-right font-mono text-muted-foreground">
+                            {group.totalDividends > 0
+                              ? formatMoney(group.totalDividends, group.currency)
+                              : '—'
+                            }
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${isClosed ? (isRealizedPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : pnlColor}`}>
                             {isClosed
                               ? <><span className="mr-1 text-[10px] text-muted-foreground">已实现</span>{isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, group.currency)}</>
                               : (
@@ -488,7 +506,7 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-[#ef4444] hover:text-[#ef4444]"
+                                    className="h-8 w-8 text-[#22c55e] hover:text-[#22c55e]"
                                     onClick={(e) => { e.stopPropagation(); handleDeleteClick(group.openLots[0]) }}
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -502,22 +520,60 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                         {/* 展开明细 */}
                         {hasMultiple && isExpanded && group.allRecords.map((record) => {
                           const isSell = record.quantity < 0
-                          const qty = Math.abs(record.quantity)
+                          const isDividend = record.quantity === 0 && (record.dividends ?? 0) > 0
+
+                          if (isDividend) {
+                            // 分红记录
+                            return (
+                              <TableRow key={record.id} className="bg-amber-500/5">
+                                <TableCell className="pl-10 text-sm">
+                                  <span className="border-l-2 border-amber-500/50 pl-2 text-amber-500/80">
+                                    {record.purchasedAt.slice(0, 10)} 分红
+                                  </span>
+                                </TableCell>
+                                <TableCell />
+                                <TableCell />
+                                <TableCell />
+                                <TableCell />
+                                <TableCell />
+                                <TableCell className="text-right font-mono text-sm text-amber-500/80">
+                                  +{formatMoney(record.dividends, record.currency)}
+                                </TableCell>
+                                <TableCell />
+                                <TableCell />
+                                {isLoggedIn && (
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-[#22c55e] hover:text-[#22c55e]"
+                                        onClick={() => handleDeleteClick(record)}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            )
+                          }
 
                           if (isSell) {
                             // 卖出记录：costBasis=买入成本, currentPrice=卖出价
+                            const qty = Math.abs(record.quantity)
                             const realizedPnL = (record.currentPrice - record.costBasis) * qty
                             const isRealizedPositive = realizedPnL >= 0
 
                             return (
                               <TableRow key={record.id} className="bg-red-500/5">
                                 <TableCell className="pl-10 text-sm">
-                                  <span className="border-l-2 border-[#ef4444]/50 pl-2 text-[#ef4444]/80">
+                                  <span className="border-l-2 border-[#22c55e]/50 pl-2 text-[#22c55e]/80">
                                     {record.purchasedAt.slice(0, 10)} 卖出
                                   </span>
                                 </TableCell>
                                 <TableCell />
-                                <TableCell className="text-right font-mono text-sm text-[#ef4444]/70">
+                                <TableCell className="text-right font-mono text-sm text-[#22c55e]/70">
                                   -{qty}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
@@ -529,7 +585,10 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   —
                                 </TableCell>
-                                <TableCell className={`text-right font-mono text-sm ${isRealizedPositive ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>
+                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                  —
+                                </TableCell>
+                                <TableCell className={`text-right font-mono text-sm ${isRealizedPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
                                   {isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, record.currency)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
@@ -549,7 +608,7 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-7 w-7 text-[#ef4444] hover:text-[#ef4444]"
+                                        className="h-7 w-7 text-[#22c55e] hover:text-[#22c55e]"
                                         onClick={() => handleDeleteClick(record)}
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -571,7 +630,7 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                           return (
                             <TableRow key={record.id} className="bg-muted/20">
                               <TableCell className="pl-10 text-sm text-muted-foreground">
-                                <span className="border-l-2 border-[#22c55e]/50 pl-2">
+                                <span className="border-l-2 border-[#ef4444]/50 pl-2">
                                   {record.purchasedAt.slice(0, 10)} 买入
                                 </span>
                               </TableCell>
@@ -588,11 +647,14 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                 {formatMoney(lotMV, record.currency)}
                               </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${lotPositive ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>
+                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                —
+                              </TableCell>
+                              <TableCell className={`text-right font-mono text-sm ${lotPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
                                 {lotPositive ? '+' : ''}
                                 {formatMoney(lotPnL, record.currency)}
                               </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${lotAnnPositive ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>
+                              <TableCell className={`text-right font-mono text-sm ${lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
                                 {formatPercent(lotAnn)}
                               </TableCell>
                               {isLoggedIn && (
@@ -609,7 +671,7 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      className="h-7 w-7 text-[#ef4444] hover:text-[#ef4444]"
+                                      className="h-7 w-7 text-[#22c55e] hover:text-[#22c55e]"
                                       onClick={() => handleDeleteClick(record)}
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
@@ -655,7 +717,7 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                className="bg-[#22c55e] text-white hover:bg-[#dc2626]"
                 onClick={handleDeleteConfirm}
               >
                 删除

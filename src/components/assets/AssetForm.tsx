@@ -31,6 +31,7 @@ export interface AssetFormData {
   quantity: number
   currency: string
   purchasedAt: string
+  dividends: number
 }
 
 interface FormErrors {
@@ -49,6 +50,7 @@ const EMPTY_FORM: AssetFormData = {
   quantity: 0,
   currency: 'CNY',
   purchasedAt: new Date().toISOString().slice(0, 10),
+  dividends: 0,
 }
 
 export function AssetForm({
@@ -76,6 +78,7 @@ export function AssetForm({
         quantity: asset.quantity,
         currency: asset.currency,
         purchasedAt: asset.purchasedAt ? asset.purchasedAt.slice(0, 10) : asset.createdAt.slice(0, 10),
+        dividends: asset.dividends ?? 0,
       })
     } else {
       setForm(EMPTY_FORM)

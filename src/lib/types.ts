@@ -43,6 +43,7 @@ export interface Asset {
   currentPrice: number
   quantity: number
   currency: string
+  dividends: number
   purchasedAt: string
   createdAt: string
   updatedAt: string

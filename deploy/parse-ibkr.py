@@ -60,6 +60,13 @@ class SellRecord:
     quantity: float    # positive number (will be negated in output)
 
 
+@dataclass
+class DividendRecord:
+    symbol: str
+    date: str        # dividend payment date
+    amount: float    # dividend amount
+
+
 def parse_trades_from_csv(filepath: str) -> list[Trade]:
     """从 IBKR CSV 中提取 Stocks 交易"""
     trades = []
@@ -144,8 +151,8 @@ def process_fifo(trades: list[Trade]) -> tuple[list[Lot], list[SellRecord]]:
     return all_lots, all_sells
 
 
-def to_json(lots: list[Lot], sells: list[SellRecord], close_prices: dict[str, float]) -> list[dict]:
-    """将 lots + sells 转为 seed-real.json 格式"""
+def to_json(lots: list[Lot], sells: list[SellRecord], close_prices: dict[str, float], div_records: list[DividendRecord]) -> list[dict]:
+    """将 lots + sells + dividends 转为 seed-real.json 格式"""
     result = []
 
     # 买入持仓（正数 quantity）
@@ -162,6 +169,7 @@ def to_json(lots: list[Lot], sells: list[SellRecord], close_prices: dict[str, fl
             'currentPrice': round(current_price, 2),
             'quantity': lot.quantity,
             'currency': 'USD',
+            'dividends': 0,
             'purchasedAt': lot.date,
         })
 
@@ -178,13 +186,66 @@ def to_json(lots: list[Lot], sells: list[SellRecord], close_prices: dict[str, fl
             'currentPrice': round(sell.sell_price, 6),
             'quantity': -sell.quantity,  # 负数表示卖出
             'currency': 'USD',
+            'dividends': 0,
             'purchasedAt': sell.date,
+        })
+
+    # 分红记录（quantity=0，dividends=金额）
+    for div in div_records:
+        desc = DESCRIPTIONS.get(div.symbol, div.symbol)
+        cat = 'etf' if div.symbol in ETFS else 'stock'
+
+        result.append({
+            'symbol': f'{div.symbol} {desc}',
+            'category': cat,
+            'market': 'us',
+            'costBasis': 0,
+            'currentPrice': 0,
+            'quantity': 0,
+            'currency': 'USD',
+            'dividends': round(div.amount, 2),
+            'purchasedAt': div.date,
         })
 
     # 按 symbol 再按日期排序
     result.sort(key=lambda x: (x['symbol'], x['purchasedAt']))
 
     return result
+
+
+def parse_dividends(filepaths: list[str]) -> list[DividendRecord]:
+    """从所有 CSV 中提取每笔分红记录（去重重叠期间）"""
+    records: list[DividendRecord] = []
+    seen: set[tuple] = set()
+
+    for filepath in filepaths:
+        with open(filepath, 'r') as f:
+            for line in f:
+                if not line.startswith('Dividends,Data,'):
+                    continue
+                row = list(csv.reader([line]))[0]
+                if len(row) < 6 or row[2] == 'Total':
+                    continue
+                date = row[3]
+                desc = row[4]
+                amount = float(row[5])
+                # 跳过空 symbol（如小计行）
+                sym_check = desc.split('(')[0].strip()
+                if not sym_check:
+                    continue
+
+                # 去重
+                key = (date, desc, amount)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                # 提取 symbol（格式如 "TLT(US...)" 或 "SPLG(US...)"）
+                sym = desc.split('(')[0].strip()
+                sym = TICKER_RENAME.get(sym, sym)
+                records.append(DividendRecord(symbol=sym, date=date, amount=amount))
+
+    return records
 
 
 def parse_close_prices(filepath: str) -> dict[str, float]:
@@ -273,6 +334,17 @@ def main():
     # 获取最新收盘价
     close_prices = parse_close_prices(files[-1])
 
+    # 解析分红记录（逐笔）
+    div_records = parse_dividends(files)
+    if div_records:
+        div_by_sym: dict[str, float] = defaultdict(float)
+        for d in div_records:
+            div_by_sym[d.symbol] += d.amount
+        total_div = sum(div_by_sym.values())
+        print(f'\n  分红汇总 ({len(div_records)} 笔, ${total_div:.2f}):', file=sys.stderr)
+        for sym, div in sorted(div_by_sym.items()):
+            print(f'    {sym}: ${div:.2f}', file=sys.stderr)
+
     # 解析现金余额
     cash_balances = parse_cash_balances(files[-1])
     if cash_balances:
@@ -281,9 +353,9 @@ def main():
             print(f'    {cb["currency"]}: {cb["quantity"]}', file=sys.stderr)
 
     # 生成 JSON
-    result = to_json(lots, sell_records, close_prices)
+    result = to_json(lots, sell_records, close_prices, div_records)
     result.extend(cash_balances)
-    print(f'\n  总记录数: {len(result)} (持仓 {len(lots)} + 卖出 {len(sell_records)} + 现金 {len(cash_balances)})', file=sys.stderr)
+    print(f'\n  总记录数: {len(result)} (持仓 {len(lots)} + 卖出 {len(sell_records)} + 分红 {len(div_records)} + 现金 {len(cash_balances)})', file=sys.stderr)
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
 

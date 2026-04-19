@@ -49,6 +49,10 @@
 - ✅ **Step 21 — 卖出记录追踪 + IBKR 数据导入**（见 `docs/steps/step-21-report.md`）
 - ✅ **Step 22 — 多币种显示 + 实时汇率换算**（见 `docs/steps/step-22-report.md`）
 
+### Phase 9 — 体验打磨与分红
+- ✅ **Step 23 — 年化收益率修正 + 红涨绿跌 + 美股实时行情**（见 `docs/steps/step-23-report.md`）
+- ✅ **Step 24 — 分红记录追踪 + 逐笔时间线展示**（见 `docs/steps/step-24-report.md`）
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`

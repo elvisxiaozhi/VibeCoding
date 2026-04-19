@@ -18,9 +18,9 @@ export function StatCard({
 }: StatCardProps) {
   const valueColor =
     variant === 'profit'
-      ? 'text-[#22c55e]'
+      ? 'text-[#ef4444]'
       : variant === 'loss'
-        ? 'text-[#ef4444]'
+        ? 'text-[#22c55e]'
         : 'text-white'
 
   return (

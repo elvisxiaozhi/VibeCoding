@@ -20,7 +20,7 @@ func New(db *sql.DB) *Store {
 // ListAssets 返回指定用户的全部资产
 func (s *Store) ListAssets(userID string) ([]model.Asset, error) {
 	rows, err := s.db.Query(`
-		SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, purchased_at, created_at, updated_at
+		SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, purchased_at, created_at, updated_at
 		FROM assets WHERE user_id = ? ORDER BY created_at`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list assets: %w", err)
@@ -30,7 +30,7 @@ func (s *Store) ListAssets(userID string) ([]model.Asset, error) {
 	var assets []model.Asset
 	for rows.Next() {
 		var a model.Asset
-		if err := rows.Scan(&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market, &a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market, &a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.Dividends, &a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan asset: %w", err)
 		}
 		assets = append(assets, a)
@@ -42,9 +42,9 @@ func (s *Store) ListAssets(userID string) ([]model.Asset, error) {
 func (s *Store) GetAsset(id, userID string) (model.Asset, error) {
 	var a model.Asset
 	err := s.db.QueryRow(`
-		SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, purchased_at, created_at, updated_at
+		SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, purchased_at, created_at, updated_at
 		FROM assets WHERE id = ? AND user_id = ?`, id, userID).
-		Scan(&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market, &a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt)
+		Scan(&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market, &a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.Dividends, &a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return a, fmt.Errorf("get asset %s: %w", id, err)
 	}
@@ -54,9 +54,9 @@ func (s *Store) GetAsset(id, userID string) (model.Asset, error) {
 // CreateAsset 插入一条资产
 func (s *Store) CreateAsset(a model.Asset) error {
 	_, err := s.db.Exec(`
-		INSERT INTO assets (id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, purchased_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.UserID, a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.PurchasedAt, a.CreatedAt, a.UpdatedAt)
+		INSERT INTO assets (id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, purchased_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.UserID, a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.Dividends, a.PurchasedAt, a.CreatedAt, a.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create asset: %w", err)
 	}
@@ -66,9 +66,9 @@ func (s *Store) CreateAsset(a model.Asset) error {
 // UpdateAsset 按 ID 更新资产全部字段（限定用户）
 func (s *Store) UpdateAsset(a model.Asset) error {
 	result, err := s.db.Exec(`
-		UPDATE assets SET symbol=?, category=?, market=?, cost_basis=?, current_price=?, quantity=?, currency=?, purchased_at=?, updated_at=?
+		UPDATE assets SET symbol=?, category=?, market=?, cost_basis=?, current_price=?, quantity=?, currency=?, dividends=?, purchased_at=?, updated_at=?
 		WHERE id=? AND user_id=?`,
-		a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.PurchasedAt, a.UpdatedAt, a.ID, a.UserID)
+		a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.Dividends, a.PurchasedAt, a.UpdatedAt, a.ID, a.UserID)
 	if err != nil {
 		return fmt.Errorf("update asset: %w", err)
 	}

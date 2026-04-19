@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   categoryBreakdown,
@@ -8,6 +8,12 @@ import {
 } from '@/lib/calc'
 import type { Asset } from '@/lib/types'
 import { MOCK_ASSETS } from '@/data/mock'
+
+interface QuoteResult {
+  symbol: string
+  price: number
+  error?: string
+}
 
 export type AssetDraft = Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>
 export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
@@ -77,6 +83,7 @@ export function useAssets(isLoggedIn: boolean) {
         currentPrice: patch.currentPrice ?? current.currentPrice,
         quantity: patch.quantity ?? current.quantity,
         currency: patch.currency ?? current.currency,
+        dividends: patch.dividends ?? current.dividends,
         purchasedAt: patch.purchasedAt ?? current.purchasedAt,
       }
 
@@ -120,6 +127,65 @@ export function useAssets(isLoggedIn: boolean) {
     },
     [isLoggedIn, fetchAssets],
   )
+
+  // 页面加载时自动刷新美股实时价格
+  const hasRefreshedPrices = useRef(false)
+  useEffect(() => {
+    if (!isLoggedIn || hasRefreshedPrices.current || loading || assets.length === 0) return
+    hasRefreshedPrices.current = true
+
+    const usHoldings = assets.filter(
+      (a) => a.market === 'us' && a.quantity > 0 && a.category !== 'cash',
+    )
+    if (usHoldings.length === 0) return
+
+    // 提取唯一 ticker（symbol 格式 "AAPL Apple"）
+    const tickerMap = new Map<string, Asset[]>()
+    for (const a of usHoldings) {
+      const ticker = a.symbol.split(' ')[0]
+      const list = tickerMap.get(ticker)
+      if (list) list.push(a)
+      else tickerMap.set(ticker, [a])
+    }
+
+    const symbols = [...tickerMap.keys()].join(',')
+
+    fetch(`/api/quotes?symbols=${symbols}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((quotes: QuoteResult[]) => {
+        const updates: Promise<void>[] = []
+        for (const q of quotes) {
+          if (q.error || q.price === 0) continue
+          const matched = tickerMap.get(q.symbol)
+          if (!matched) continue
+          for (const a of matched) {
+            if (Math.abs(a.currentPrice - q.price) > 0.001) {
+              updates.push(
+                fetch(`/api/assets/${a.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    symbol: a.symbol,
+                    category: a.category,
+                    market: a.market,
+                    costBasis: a.costBasis,
+                    currentPrice: q.price,
+                    quantity: a.quantity,
+                    currency: a.currency,
+                    purchasedAt: a.purchasedAt,
+                  }),
+                }).then(() => undefined),
+              )
+            }
+          }
+        }
+        if (updates.length > 0) {
+          Promise.all(updates).then(() => fetchAssets())
+        }
+      })
+      .catch((err) => console.error('Stock price refresh failed:', err))
+  }, [isLoggedIn, loading, assets, fetchAssets])
 
   // 只统计持仓（qty > 0），排除卖出记录
   const holdings = useMemo(() => assets.filter((a) => a.quantity > 0), [assets])

@@ -56,6 +56,9 @@ func main() {
 	assetsHandler := &handler.Assets{Store: s}
 	assetsHandler.RegisterRoutes(mux)
 
+	quotesHandler := &handler.Quotes{}
+	quotesHandler.RegisterRoutes(mux)
+
 	// 5. 启动 HTTP server（包裹 CORS 中间件）
 	addr := ":8080"
 	fmt.Printf("server listening on %s\n", addr)

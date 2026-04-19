@@ -11,9 +11,14 @@ export function costValue(asset: Asset): number {
   return asset.costBasis * asset.quantity
 }
 
-/** 单条资产盈亏额 = 市值 - 成本 */
+/** 单条资产分红 */
+export function dividendValue(asset: Asset): number {
+  return asset.dividends ?? 0
+}
+
+/** 单条资产盈亏额 = 市值 - 成本 + 分红 */
 export function pnlValue(asset: Asset): number {
-  return marketValue(asset) - costValue(asset)
+  return marketValue(asset) - costValue(asset) + dividendValue(asset)
 }
 
 /** 单条资产盈亏率 = 盈亏额 / 成本；成本为 0 返回 0 */
@@ -32,9 +37,14 @@ export function totalCostValue(assets: Asset[]): number {
   return assets.reduce((sum, a) => sum + costValue(a), 0)
 }
 
-/** 组合总盈亏额 */
+/** 组合总分红 */
+export function totalDividendValue(assets: Asset[]): number {
+  return assets.reduce((sum, a) => sum + dividendValue(a), 0)
+}
+
+/** 组合总盈亏额 = 总市值 - 总成本 + 总分红 */
 export function totalPnLValue(assets: Asset[]): number {
-  return totalMarketValue(assets) - totalCostValue(assets)
+  return totalMarketValue(assets) - totalCostValue(assets) + totalDividendValue(assets)
 }
 
 /** 组合总盈亏率 */
@@ -51,7 +61,7 @@ export function holdingDays(asset: Asset): number {
   return Math.max(Math.floor(diffMs / (1000 * 60 * 60 * 24)), 1)
 }
 
-/** 单条资产年化收益率 = ((1 + 盈亏率) ^ (365 / 持有天数)) - 1 */
+/** 单条资产年化收益率（含分红）= ((1 + 总收益率) ^ (365 / 持有天数)) - 1 */
 export function annualizedReturn(asset: Asset): number {
   const rate = pnlRate(asset)
   const days = holdingDays(asset)
@@ -59,17 +69,24 @@ export function annualizedReturn(asset: Asset): number {
   return Math.pow(1 + rate, 365 / days) - 1
 }
 
-/** 组合年化收益率（按资产成本加权） */
-export function totalAnnualizedReturn(assets: Asset[]): number {
+/** 组合年化收益率（真实 CAGR，含分红） */
+export function totalAnnualizedReturn(assets: Asset[], extraDividends = 0): number {
   const totalCost = totalCostValue(assets)
   if (totalCost === 0) return 0
-  let weightedSum = 0
+  const totalMV = totalMarketValue(assets)
+  const totalDiv = totalDividendValue(assets) + extraDividends
+  const totalRate = (totalMV - totalCost + totalDiv) / totalCost
+
+  // 成本加权平均持有天数
+  let weightedDays = 0
   for (const a of assets) {
     const cost = costValue(a)
     const weight = cost / totalCost
-    weightedSum += annualizedReturn(a) * weight
+    weightedDays += holdingDays(a) * weight
   }
-  return weightedSum
+  const avgDays = Math.max(weightedDays, 1)
+
+  return Math.pow(1 + totalRate, 365 / avgDays) - 1
 }
 
 export interface CategoryBreakdownItem {
