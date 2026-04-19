@@ -11,12 +11,14 @@ import {
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
-import { annualizedReturn, pnlRate, pnlValue, totalAnnualizedReturn, totalMarketValue } from '@/lib/calc'
-import type { MarketType } from '@/lib/types'
-import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
+import { useExchangeRates } from '@/hooks/useExchangeRates'
+import { annualizedReturn, type CategoryBreakdownItem, costValue, marketValue, pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
+import { formatMoney, toCNY } from '@/lib/currency'
+import type { Asset, AssetCategory, MarketType } from '@/lib/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
 function formatCNY(n: number): string {
-  return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatMoney(n, 'CNY')
 }
 
 function formatPercent(n: number): string {
@@ -27,19 +29,48 @@ interface DashboardProps {
   isLoggedIn: boolean
 }
 
+/** 计算资产的人民币市值 */
+function assetMVInCNY(a: Asset, rates: Record<string, number>): number {
+  return toCNY(marketValue(a), a.currency, rates)
+}
+
+/** 计算资产的人民币成本 */
+function assetCostInCNY(a: Asset, rates: Record<string, number>): number {
+  return toCNY(costValue(a), a.currency, rates)
+}
+
 export function Dashboard({ isLoggedIn }: DashboardProps) {
-  const { assets, loading, totalValue, totalCost, totalPnL, categoryBreakdown } =
-    useAssets(isLoggedIn)
+  const { assets, loading } = useAssets(isLoggedIn)
+  const { rates } = useExchangeRates()
 
   // 只统计持仓（qty > 0），排除卖出记录
   const holdings = assets.filter((a) => a.quantity > 0)
 
-  const pnlPercent = totalCost === 0 ? 0 : totalPnL / totalCost
-  const pnlVariant = totalPnL >= 0 ? 'profit' : 'loss'
+  // 汇率换算后的总值（人民币）
+  const totalValueCNY = holdings.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
+  const totalCostCNY = holdings.reduce((s, a) => s + assetCostInCNY(a, rates), 0)
+  const totalPnLCNY = totalValueCNY - totalCostCNY
+
+  const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
+  const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
   const annReturn = totalAnnualizedReturn(holdings)
   const annVariant = annReturn >= 0 ? 'profit' : 'loss'
 
-  // Top 5 涨跌排行（按盈亏率排序）
+  // 按分类汇总（人民币换算）
+  const categoryBreakdownCNY: CategoryBreakdownItem[] = (() => {
+    const bucket = new Map<AssetCategory, number>()
+    for (const c of CATEGORY_ORDER) bucket.set(c, 0)
+    for (const a of holdings) {
+      const mvCNY = assetMVInCNY(a, rates)
+      bucket.set(a.category, (bucket.get(a.category) ?? 0) + mvCNY)
+    }
+    return CATEGORY_ORDER.map((category) => {
+      const value = bucket.get(category) ?? 0
+      return { category, value, ratio: totalValueCNY === 0 ? 0 : value / totalValueCNY }
+    })
+  })()
+
+  // Top 5 涨跌排行（按盈亏率排序，盈亏率与币种无关）
   const top5 = [...holdings]
     .sort((a, b) => pnlRate(b) - pnlRate(a))
     .slice(0, 5)
@@ -93,19 +124,19 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
       <div className="grid grid-cols-4 gap-6">
         <StatCard
           title="总资产"
-          value={formatCNY(totalValue)}
+          value={formatCNY(totalValueCNY)}
           icon={Wallet}
         />
         <StatCard
           title="浮动盈亏"
-          value={`${totalPnL >= 0 ? '+' : ''}${formatCNY(totalPnL)}`}
+          value={`${totalPnLCNY >= 0 ? '+' : ''}${formatCNY(totalPnLCNY)}`}
           subtitle={formatPercent(pnlPercent)}
-          icon={totalPnL >= 0 ? TrendingUp : TrendingDown}
+          icon={totalPnLCNY >= 0 ? TrendingUp : TrendingDown}
           variant={pnlVariant}
         />
         <StatCard
           title="投入本金"
-          value={formatCNY(totalCost)}
+          value={formatCNY(totalCostCNY)}
           icon={DollarSign}
         />
         <StatCard
@@ -120,10 +151,10 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
       {marketSummary.length > 0 && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {marketSummary.map(({ market, assets: group }) => {
-            const mv = totalMarketValue(group)
+            const mvCNY = group.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
             const ann = totalAnnualizedReturn(group)
             const isAnnPositive = ann >= 0
-            const ratio = totalValue === 0 ? 0 : mv / totalValue
+            const ratio = totalValueCNY === 0 ? 0 : mvCNY / totalValueCNY
 
             return (
               <div
@@ -134,7 +165,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                   {MARKET_LABELS[market as MarketType]}
                 </p>
                 <p className="mt-1 font-mono text-lg font-semibold text-white">
-                  {formatCNY(mv)}
+                  {formatCNY(mvCNY)}
                 </p>
                 <div className="mt-2 flex items-baseline justify-between">
                   <span className="text-xs text-muted-foreground">
@@ -152,7 +183,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
 
       {/* 分类占比饼图 + 涨跌排行 */}
       <div className="grid grid-cols-2 gap-6">
-        <CategoryPieChart data={categoryBreakdown} />
+        <CategoryPieChart data={categoryBreakdownCNY} />
 
         {/* Top 5 涨跌排行 */}
         <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
@@ -161,6 +192,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
             {top5.map((asset) => {
               const rate = pnlRate(asset)
               const pnl = pnlValue(asset)
+              const pnlCNY = toCNY(pnl, asset.currency, rates)
               const isPositive = pnl >= 0
               return (
                 <div
@@ -180,8 +212,13 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                       className={`font-mono text-sm ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}
                     >
                       {isPositive ? '+' : ''}
-                      {formatCNY(pnl)}
+                      {formatMoney(pnl, asset.currency)}
                     </p>
+                    {asset.currency !== 'CNY' && (
+                      <p className="font-mono text-[10px] text-muted-foreground">
+                        ≈ {isPositive ? '+' : ''}{formatCNY(pnlCNY)}
+                      </p>
+                    )}
                     <p
                       className={`font-mono text-xs ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}
                     >

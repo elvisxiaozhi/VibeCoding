@@ -35,7 +35,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
+import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { annualizedReturn, costValue, marketValue, pnlValue, totalAnnualizedReturn, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
@@ -54,6 +56,7 @@ type SortDir = 'asc' | 'desc'
 interface SymbolGroup {
   symbol: string
   category: string
+  currency: string
   currentPrice: number
   /** 当前持仓 lots (qty > 0) */
   openLots: Asset[]
@@ -66,13 +69,6 @@ interface SymbolGroup {
   totalMV: number
   totalPnL: number
   annReturn: number
-}
-
-function formatCNY(n: number): string {
-  return n.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
 }
 
 function formatPercent(n: number): string {
@@ -130,6 +126,7 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     groups.push({
       symbol,
       category: representative.category,
+      currency: representative.currency,
       currentPrice: openLots.length > 0 ? representative.currentPrice : 0,
       openLots,
       sellRecords,
@@ -179,6 +176,7 @@ interface AssetTableProps {
 
 export function AssetTable({ isLoggedIn }: AssetTableProps) {
   const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn)
+  const { rates } = useExchangeRates()
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -335,10 +333,11 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
       {/* 按板块分组的表格 */}
       {groupedByMarket.map(({ market, groups: symbolGroups }) => {
         const allOpenLots = symbolGroups.flatMap((g) => g.openLots)
-        const groupMV = totalMarketValue(allOpenLots)
-        const groupPnL = totalPnLValue(allOpenLots)
+        const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
+        const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
+        const groupPnLCNY = groupMVCNY - groupCostCNY
         const groupAnn = totalAnnualizedReturn(allOpenLots)
-        const isGroupPositive = groupPnL >= 0
+        const isGroupPositive = groupPnLCNY >= 0
         const isGroupAnnPositive = groupAnn >= 0
 
         return (
@@ -350,12 +349,12 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
               </h3>
               <div className="flex items-baseline gap-4 text-xs">
                 <span className="text-muted-foreground">
-                  市值 <span className="font-mono text-white">{formatCNY(groupMV)}</span>
+                  市值 <span className="font-mono text-white">{formatMoney(groupMVCNY, 'CNY')}</span>
                 </span>
                 <span className="text-muted-foreground">
                   盈亏{' '}
                   <span className={`font-mono ${isGroupPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                    {isGroupPositive ? '+' : ''}{formatCNY(groupPnL)}
+                    {isGroupPositive ? '+' : ''}{formatMoney(groupPnLCNY, 'CNY')}
                   </span>
                 </span>
                 <span className="text-muted-foreground">
@@ -439,18 +438,36 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                             {isClosed ? '—' : group.totalQuantity}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatCNY(group.weightedCostBasis)}
+                            {isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatCNY(group.currentPrice)}
+                            {isClosed ? '—' : formatMoney(group.currentPrice, group.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatCNY(group.totalMV)}
+                            {isClosed ? '—' : (
+                              <div>
+                                {formatMoney(group.totalMV, group.currency)}
+                                {group.currency !== 'CNY' && (
+                                  <div className="text-[10px] text-muted-foreground">
+                                    ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className={`text-right font-mono ${isClosed ? (isRealizedPositive ? 'text-[#22c55e]' : 'text-[#ef4444]') : pnlColor}`}>
                             {isClosed
-                              ? <><span className="mr-1 text-[10px] text-muted-foreground">已实现</span>{isRealizedPositive ? '+' : ''}{formatCNY(realizedPnL)}</>
-                              : <>{isPositive ? '+' : ''}{formatCNY(group.totalPnL)}</>
+                              ? <><span className="mr-1 text-[10px] text-muted-foreground">已实现</span>{isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, group.currency)}</>
+                              : (
+                                <div>
+                                  {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
+                                  {group.currency !== 'CNY' && (
+                                    <div className="text-[10px] text-muted-foreground">
+                                      ≈ {toCNY(group.totalPnL, group.currency, rates) >= 0 ? '+' : ''}{formatMoney(toCNY(group.totalPnL, group.currency, rates), 'CNY')}
+                                    </div>
+                                  )}
+                                </div>
+                              )
                             }
                           </TableCell>
                           <TableCell className={`text-right font-mono ${isClosed ? 'text-muted-foreground' : annColor}`}>
@@ -504,16 +521,16 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                   -{qty}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {formatCNY(record.costBasis)}
+                                  {formatMoney(record.costBasis, record.currency)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {formatCNY(record.currentPrice)}
+                                  {formatMoney(record.currentPrice, record.currency)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   —
                                 </TableCell>
                                 <TableCell className={`text-right font-mono text-sm ${isRealizedPositive ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>
-                                  {isRealizedPositive ? '+' : ''}{formatCNY(realizedPnL)}
+                                  {isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, record.currency)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   —
@@ -563,17 +580,17 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                                 {record.quantity}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatCNY(record.costBasis)}
+                                {formatMoney(record.costBasis, record.currency)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatCNY(record.currentPrice)}
+                                {formatMoney(record.currentPrice, record.currency)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatCNY(lotMV)}
+                                {formatMoney(lotMV, record.currency)}
                               </TableCell>
                               <TableCell className={`text-right font-mono text-sm ${lotPositive ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>
                                 {lotPositive ? '+' : ''}
-                                {formatCNY(lotPnL)}
+                                {formatMoney(lotPnL, record.currency)}
                               </TableCell>
                               <TableCell className={`text-right font-mono text-sm ${lotAnnPositive ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>
                                 {formatPercent(lotAnn)}

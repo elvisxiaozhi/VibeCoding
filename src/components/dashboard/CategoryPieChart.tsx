@@ -2,6 +2,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { CategoryBreakdownItem } from '@/lib/calc'
+import { formatMoney } from '@/lib/currency'
 import { CATEGORY_LABELS } from '@/lib/types'
 
 const COLORS: Record<string, string> = {
@@ -16,12 +17,6 @@ interface CategoryPieChartProps {
   data: CategoryBreakdownItem[]
 }
 
-function formatCNY(n: number): string {
-  return n.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
 
 export function CategoryPieChart({ data }: CategoryPieChartProps) {
   // 过滤掉市值为 0 的分类，避免饼图出现空切片
@@ -67,7 +62,7 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
                     color: '#fff',
                     fontSize: '12px',
                   }}
-                  formatter={(value) => [`¥${formatCNY(Number(value))}`, '市值']}
+                  formatter={(value) => [formatMoney(Number(value), 'CNY'), '市值']}
                 />
               </PieChart>
             </ResponsiveContainer>
