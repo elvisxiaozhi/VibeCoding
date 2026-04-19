@@ -11,7 +11,7 @@ import {
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
-import { pnlRate, pnlValue, totalAnnualizedReturn, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { annualizedReturn, pnlRate, pnlValue, totalAnnualizedReturn, totalMarketValue } from '@/lib/calc'
 import type { MarketType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
@@ -39,6 +39,11 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
   // Top 5 涨跌排行（按盈亏率排序）
   const top5 = [...assets]
     .sort((a, b) => pnlRate(b) - pnlRate(a))
+    .slice(0, 5)
+
+  // Top 5 年化收益率排行
+  const top5Ann = [...assets]
+    .sort((a, b) => annualizedReturn(b) - annualizedReturn(a))
     .slice(0, 5)
 
   // 按板块汇总
@@ -113,10 +118,8 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {marketSummary.map(({ market, assets: group }) => {
             const mv = totalMarketValue(group)
-            const cost = totalCostValue(group)
-            const pnl = totalPnLValue(group)
-            const rate = cost === 0 ? 0 : pnl / cost
-            const isPositive = pnl >= 0
+            const ann = totalAnnualizedReturn(group)
+            const isAnnPositive = ann >= 0
             const ratio = totalValue === 0 ? 0 : mv / totalValue
 
             return (
@@ -134,8 +137,8 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                   <span className="text-xs text-muted-foreground">
                     占比 {(ratio * 100).toFixed(1)}%
                   </span>
-                  <span className={`font-mono text-xs ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                    {formatPercent(rate)}
+                  <span className={`font-mono text-xs ${isAnnPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                    年化 {formatPercent(ann)}
                   </span>
                 </div>
               </div>
@@ -186,6 +189,35 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
               )
             })}
           </div>
+        </div>
+      </div>
+
+      {/* 年化收益率排行 */}
+      <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
+        <h3 className="mb-4 font-semibold text-white">年化收益率排行 Top 5</h3>
+        <div className="grid grid-cols-5 gap-4">
+          {top5Ann.map((asset) => {
+            const ann = annualizedReturn(asset)
+            const isPositive = ann >= 0
+            return (
+              <div
+                key={asset.id}
+                className="rounded-lg border border-border/30 bg-background/50 p-4"
+              >
+                <p className="truncate text-sm font-medium text-white">
+                  {asset.symbol}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {CATEGORY_LABELS[asset.category]}
+                </p>
+                <p
+                  className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}
+                >
+                  {formatPercent(ann)}
+                </p>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

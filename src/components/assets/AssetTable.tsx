@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
-import { annualizedReturn, marketValue, pnlRate, pnlValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { annualizedReturn, marketValue, pnlValue, totalAnnualizedReturn, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import type { Asset, MarketType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
@@ -45,7 +45,6 @@ type SortKey =
   | 'currentPrice'
   | 'marketValue'
   | 'pnl'
-  | 'pnlRate'
   | 'annualized'
 type SortDir = 'asc' | 'desc'
 
@@ -76,8 +75,6 @@ function getSortValue(asset: Asset, key: SortKey): number | string {
       return marketValue(asset)
     case 'pnl':
       return pnlValue(asset)
-    case 'pnlRate':
-      return pnlRate(asset)
     case 'annualized':
       return annualizedReturn(asset)
   }
@@ -97,7 +94,6 @@ const COLUMNS: ColumnDef[] = [
   { key: 'currentPrice', label: '现价', align: 'right' },
   { key: 'marketValue', label: '市值', align: 'right' },
   { key: 'pnl', label: '盈亏额', align: 'right' },
-  { key: 'pnlRate', label: '盈亏率', align: 'right' },
   { key: 'annualized', label: '年化收益率', align: 'right' },
 ]
 
@@ -265,10 +261,10 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
       {/* 按板块分组的表格 */}
       {groupedByMarket.map(({ market, assets: groupAssets }) => {
         const groupMV = totalMarketValue(groupAssets)
-        const groupCost = totalCostValue(groupAssets)
         const groupPnL = totalPnLValue(groupAssets)
-        const groupPnLRate = groupCost === 0 ? 0 : groupPnL / groupCost
+        const groupAnn = totalAnnualizedReturn(groupAssets)
         const isGroupPositive = groupPnL >= 0
+        const isGroupAnnPositive = groupAnn >= 0
 
         return (
           <div key={market} className="space-y-2">
@@ -288,9 +284,9 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                   </span>
                 </span>
                 <span className="text-muted-foreground">
-                  盈亏率{' '}
-                  <span className={`font-mono ${isGroupPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                    {formatPercent(groupPnLRate)}
+                  年化{' '}
+                  <span className={`font-mono ${isGroupAnnPositive ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                    {formatPercent(groupAnn)}
                   </span>
                 </span>
               </div>
@@ -318,7 +314,6 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                   {groupAssets.map((asset) => {
                     const mv = marketValue(asset)
                     const pnl = pnlValue(asset)
-                    const rate = pnlRate(asset)
                     const ann = annualizedReturn(asset)
                     const isPositive = pnl >= 0
                     const isAnnPositive = ann >= 0
@@ -352,9 +347,6 @@ export function AssetTable({ isLoggedIn }: AssetTableProps) {
                         <TableCell className={`text-right font-mono ${pnlColor}`}>
                           {isPositive ? '+' : ''}
                           {formatCNY(pnl)}
-                        </TableCell>
-                        <TableCell className={`text-right font-mono ${pnlColor}`}>
-                          {formatPercent(rate)}
                         </TableCell>
                         <TableCell className={`text-right font-mono ${annColor}`}>
                           {formatPercent(ann)}
