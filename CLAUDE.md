@@ -45,6 +45,10 @@
 - ✅ **Step 19 — 货币资产类型 + 货币汇总**（见 `docs/steps/step-19-report.md`）
 - ✅ **Step 20 — 资产板块分类展示**（见 `docs/steps/step-20-report.md`）
 
+### Phase 8 — 真实数据与多币种
+- ✅ **Step 21 — 卖出记录追踪 + IBKR 数据导入**（见 `docs/steps/step-21-report.md`）
+- ✅ **Step 22 — 多币种显示 + 实时汇率换算**（见 `docs/steps/step-22-report.md`）
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`
