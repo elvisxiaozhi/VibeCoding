@@ -31,25 +31,28 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
   const { assets, loading, totalValue, totalCost, totalPnL, categoryBreakdown } =
     useAssets(isLoggedIn)
 
+  // 只统计持仓（qty > 0），排除卖出记录
+  const holdings = assets.filter((a) => a.quantity > 0)
+
   const pnlPercent = totalCost === 0 ? 0 : totalPnL / totalCost
   const pnlVariant = totalPnL >= 0 ? 'profit' : 'loss'
-  const annReturn = totalAnnualizedReturn(assets)
+  const annReturn = totalAnnualizedReturn(holdings)
   const annVariant = annReturn >= 0 ? 'profit' : 'loss'
 
   // Top 5 涨跌排行（按盈亏率排序）
-  const top5 = [...assets]
+  const top5 = [...holdings]
     .sort((a, b) => pnlRate(b) - pnlRate(a))
     .slice(0, 5)
 
   // Top 5 年化收益率排行
-  const top5Ann = [...assets]
+  const top5Ann = [...holdings]
     .sort((a, b) => annualizedReturn(b) - annualizedReturn(a))
     .slice(0, 5)
 
   // 按板块汇总
   const marketSummary = MARKET_ORDER
     .map((m) => {
-      const group = assets.filter((a) => (a.market || 'cn') === m)
+      const group = holdings.filter((a) => (a.market || 'cn') === m)
       return { market: m, assets: group }
     })
     .filter(({ assets: g }) => g.length > 0)

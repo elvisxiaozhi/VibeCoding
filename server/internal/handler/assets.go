@@ -221,8 +221,8 @@ func validateCreate(req createRequest) error {
 	default:
 		return errors.New("category must be one of: stock, etf, crypto, cash, currency")
 	}
-	if req.Quantity <= 0 {
-		return errors.New("quantity must be > 0")
+	if req.Quantity == 0 {
+		return errors.New("quantity must not be 0")
 	}
 	return nil
 }

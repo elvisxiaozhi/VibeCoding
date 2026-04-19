@@ -121,10 +121,12 @@ export function useAssets(isLoggedIn: boolean) {
     [isLoggedIn, fetchAssets],
   )
 
-  const totalValue = useMemo(() => totalMarketValue(assets), [assets])
-  const totalCost = useMemo(() => totalCostValue(assets), [assets])
-  const totalPnL = useMemo(() => totalPnLValue(assets), [assets])
-  const breakdown = useMemo(() => categoryBreakdown(assets), [assets])
+  // 只统计持仓（qty > 0），排除卖出记录
+  const holdings = useMemo(() => assets.filter((a) => a.quantity > 0), [assets])
+  const totalValue = useMemo(() => totalMarketValue(holdings), [holdings])
+  const totalCost = useMemo(() => totalCostValue(holdings), [holdings])
+  const totalPnL = useMemo(() => totalPnLValue(holdings), [holdings])
+  const breakdown = useMemo(() => categoryBreakdown(holdings), [holdings])
 
   return {
     assets,
