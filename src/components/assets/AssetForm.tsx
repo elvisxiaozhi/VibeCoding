@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { Asset, AssetCategory, CurrencyCode, MarketType } from '@/lib/types'
-import { CATEGORY_LABELS, CATEGORY_ORDER, CURRENCY_CODES, CURRENCY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
+import type { Asset, AssetCategory, CurrencyCode, MarketType, OwnerType } from '@/lib/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER, CURRENCY_CODES, CURRENCY_LABELS, MARKET_LABELS, MARKET_ORDER, OWNER_LABELS, OWNER_OPTIONS } from '@/lib/types'
 
 interface AssetFormProps {
   open: boolean
@@ -32,6 +32,7 @@ export interface AssetFormData {
   currency: string
   purchasedAt: string
   dividends: number
+  owner: OwnerType
 }
 
 interface FormErrors {
@@ -51,6 +52,7 @@ const EMPTY_FORM: AssetFormData = {
   currency: 'CNY',
   purchasedAt: new Date().toISOString().slice(0, 10),
   dividends: 0,
+  owner: 'me',
 }
 
 export function AssetForm({
@@ -79,6 +81,7 @@ export function AssetForm({
         currency: asset.currency,
         purchasedAt: asset.purchasedAt ? asset.purchasedAt.slice(0, 10) : asset.createdAt.slice(0, 10),
         dividends: asset.dividends ?? 0,
+        owner: (asset.owner as OwnerType) || 'me',
       })
     } else {
       setForm(EMPTY_FORM)
@@ -273,6 +276,23 @@ export function AssetForm({
               value={form.purchasedAt}
               onChange={(e) => setField('purchasedAt', e.target.value)}
             />
+          </div>
+
+          {/* 归属人 */}
+          <div className="space-y-2">
+            <Label htmlFor="owner">归属人</Label>
+            <select
+              id="owner"
+              value={form.owner}
+              onChange={(e) => setField('owner', e.target.value as OwnerType)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {OWNER_OPTIONS.map((o) => (
+                <option key={o} value={o} className="bg-[#1a1a1a]">
+                  {OWNER_LABELS[o]}
+                </option>
+              ))}
+            </select>
           </div>
 
           <DialogFooter>

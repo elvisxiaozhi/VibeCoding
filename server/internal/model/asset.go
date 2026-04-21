@@ -33,6 +33,7 @@ type Asset struct {
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
 	Dividends    float64 `json:"dividends"`
+	Owner        string  `json:"owner"`
 	PurchasedAt  string  `json:"purchasedAt"`
 	CreatedAt    string  `json:"createdAt"`
 	UpdatedAt    string  `json:"updatedAt"`

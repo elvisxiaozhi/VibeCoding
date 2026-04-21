@@ -34,6 +34,15 @@ export const CURRENCY_LABELS: Record<CurrencyCode, string> = {
 
 export const CURRENCY_CODES: CurrencyCode[] = ['CNY', 'HKD', 'USD', 'BTC', 'USDC', 'USDT']
 
+export type OwnerType = 'me' | 'wife'
+
+export const OWNER_LABELS: Record<OwnerType, string> = {
+  me: '我的',
+  wife: '老婆的',
+}
+
+export const OWNER_OPTIONS: OwnerType[] = ['me', 'wife']
+
 export interface Asset {
   id: string
   symbol: string
@@ -44,6 +53,7 @@ export interface Asset {
   quantity: number
   currency: string
   dividends: number
+  owner: OwnerType
   purchasedAt: string
   createdAt: string
   updatedAt: string

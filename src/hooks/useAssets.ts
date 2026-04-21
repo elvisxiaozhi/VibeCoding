@@ -6,7 +6,7 @@ import {
   totalMarketValue,
   totalPnLValue,
 } from '@/lib/calc'
-import type { Asset } from '@/lib/types'
+import type { Asset, OwnerType } from '@/lib/types'
 import { MOCK_ASSETS } from '@/data/mock'
 
 interface QuoteResult {
@@ -18,7 +18,7 @@ interface QuoteResult {
 export type AssetDraft = Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>
 export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 
-export function useAssets(isLoggedIn: boolean) {
+export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -30,7 +30,8 @@ export function useAssets(isLoggedIn: boolean) {
     }
     try {
       setLoading(true)
-      const res = await fetch('/api/assets', { credentials: 'include' })
+      const params = ownerFilter ? `?owner=${ownerFilter}` : ''
+      const res = await fetch(`/api/assets${params}`, { credentials: 'include' })
       const data = (await res.json()) as Asset[]
       setAssets(data)
     } catch (err) {
@@ -38,7 +39,7 @@ export function useAssets(isLoggedIn: boolean) {
     } finally {
       setLoading(false)
     }
-  }, [isLoggedIn])
+  }, [isLoggedIn, ownerFilter])
 
   // 初始加载 + 登录态切换时重新加载
   useEffect(() => {
@@ -84,6 +85,7 @@ export function useAssets(isLoggedIn: boolean) {
         quantity: patch.quantity ?? current.quantity,
         currency: patch.currency ?? current.currency,
         dividends: patch.dividends ?? current.dividends,
+        owner: patch.owner ?? current.owner,
         purchasedAt: patch.purchasedAt ?? current.purchasedAt,
       }
 
@@ -173,6 +175,7 @@ export function useAssets(isLoggedIn: boolean) {
                     currentPrice: q.price,
                     quantity: a.quantity,
                     currency: a.currency,
+                    owner: a.owner,
                     purchasedAt: a.purchasedAt,
                   }),
                 }).then(() => undefined),

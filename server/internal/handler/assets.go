@@ -32,7 +32,8 @@ func (h *Assets) RegisterRoutes(mux *http.ServeMux) {
 // GET /api/assets — 返回当前用户全部资产列表
 func (h *Assets) list(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserIDFromContext(r.Context())
-	assets, err := h.Store.ListAssets(userID)
+	owner := r.URL.Query().Get("owner")
+	assets, err := h.Store.ListAssets(userID, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -70,6 +71,7 @@ type createRequest struct {
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
 	Dividends    float64 `json:"dividends"`
+	Owner        string  `json:"owner"`
 	PurchasedAt  string  `json:"purchasedAt"`
 }
 
@@ -99,6 +101,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 		Quantity:     req.Quantity,
 		Currency:     req.Currency,
 		Dividends:    req.Dividends,
+		Owner:        req.Owner,
 		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -111,6 +114,9 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 	}
 	if asset.PurchasedAt == "" {
 		asset.PurchasedAt = now
+	}
+	if asset.Owner == "" {
+		asset.Owner = "me"
 	}
 
 	if err := h.Store.CreateAsset(asset); err != nil {
@@ -130,6 +136,7 @@ type updateRequest struct {
 	Quantity     float64 `json:"quantity"`
 	Currency     string  `json:"currency"`
 	Dividends    float64 `json:"dividends"`
+	Owner        string  `json:"owner"`
 	PurchasedAt  string  `json:"purchasedAt"`
 }
 
@@ -167,6 +174,7 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		Quantity:     req.Quantity,
 		Currency:     req.Currency,
 		Dividends:    req.Dividends,
+		Owner:        req.Owner,
 		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    existing.CreatedAt,
 		UpdatedAt:    now,
@@ -179,6 +187,9 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if asset.PurchasedAt == "" {
 		asset.PurchasedAt = existing.PurchasedAt
+	}
+	if asset.Owner == "" {
+		asset.Owner = existing.Owner
 	}
 
 	if err := h.Store.UpdateAsset(asset); err != nil {

@@ -12,9 +12,9 @@ import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
-import { annualizedReturn, type CategoryBreakdownItem, costValue, dividendValue, marketValue, pnlRate, pnlValue, totalAnnualizedReturn } from '@/lib/calc'
+import { type CategoryBreakdownItem, costValue, dividendValue, marketValue, totalAnnualizedReturn, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
-import type { Asset, AssetCategory, MarketType } from '@/lib/types'
+import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
 function formatCNY(n: number): string {
@@ -27,6 +27,7 @@ function formatPercent(n: number): string {
 
 interface DashboardProps {
   isLoggedIn: boolean
+  ownerFilter?: OwnerType
 }
 
 /** 计算资产的人民币市值 */
@@ -39,8 +40,8 @@ function assetCostInCNY(a: Asset, rates: Record<string, number>): number {
   return toCNY(costValue(a), a.currency, rates)
 }
 
-export function Dashboard({ isLoggedIn }: DashboardProps) {
-  const { assets, loading } = useAssets(isLoggedIn)
+export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
+  const { assets, loading } = useAssets(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
 
   // 只统计持仓（qty > 0），排除卖出和分红记录
@@ -73,14 +74,59 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
     })
   })()
 
-  // Top 5 涨跌排行（按盈亏率排序，盈亏率与币种无关）
-  const top5 = [...holdings]
-    .sort((a, b) => pnlRate(b) - pnlRate(a))
+  // 按 symbol 汇总持仓（用于排行榜）
+  interface SymbolSummary {
+    symbol: string
+    category: string
+    currency: string
+    lots: Asset[]
+    dividends: number
+    totalMV: number
+    totalCost: number
+    totalPnL: number
+    pnlRate: number
+    annReturn: number
+  }
+
+  const symbolSummaries: SymbolSummary[] = (() => {
+    const map = new Map<string, Asset[]>()
+    for (const a of holdings) {
+      const list = map.get(a.symbol)
+      if (list) list.push(a)
+      else map.set(a.symbol, [a])
+    }
+    const summaries: SymbolSummary[] = []
+    for (const [symbol, lots] of map) {
+      const symDivs = divRecords
+        .filter((d) => d.symbol === symbol)
+        .reduce((s, d) => s + (d.dividends ?? 0), 0)
+      const mv = totalMarketValue(lots)
+      const cost = totalCostValue(lots)
+      const pnl = totalPnLValue(lots) + symDivs
+      summaries.push({
+        symbol,
+        category: lots[0].category,
+        currency: lots[0].currency,
+        lots,
+        dividends: symDivs,
+        totalMV: mv,
+        totalCost: cost,
+        totalPnL: pnl,
+        pnlRate: cost === 0 ? 0 : pnl / cost,
+        annReturn: totalAnnualizedReturn(lots, symDivs),
+      })
+    }
+    return summaries
+  })()
+
+  // Top 5 涨跌排行（按 symbol 汇总后的盈亏率）
+  const top5 = [...symbolSummaries]
+    .sort((a, b) => b.pnlRate - a.pnlRate)
     .slice(0, 5)
 
-  // Top 5 年化收益率排行
-  const top5Ann = [...holdings]
-    .sort((a, b) => annualizedReturn(b) - annualizedReturn(a))
+  // Top 5 年化收益率排行（按 symbol 汇总后的年化）
+  const top5Ann = [...symbolSummaries]
+    .sort((a, b) => b.annReturn - a.annReturn)
     .slice(0, 5)
 
   // 按板块汇总
@@ -192,22 +238,20 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
         <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
           <h3 className="mb-4 font-semibold text-white">涨跌排行 Top 5</h3>
           <div className="space-y-3">
-            {top5.map((asset) => {
-              const rate = pnlRate(asset)
-              const pnl = pnlValue(asset)
-              const pnlCNY = toCNY(pnl, asset.currency, rates)
-              const isPositive = pnl >= 0
+            {top5.map((s) => {
+              const pnlCNY = toCNY(s.totalPnL, s.currency, rates)
+              const isPositive = s.totalPnL >= 0
               return (
                 <div
-                  key={asset.id}
+                  key={s.symbol}
                   className="flex items-center justify-between"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-white">
-                      {asset.symbol}
+                      {s.symbol}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {CATEGORY_LABELS[asset.category]}
+                      {CATEGORY_LABELS[s.category as AssetCategory]}
                     </p>
                   </div>
                   <div className="ml-4 text-right">
@@ -215,9 +259,9 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                       className={`font-mono text-sm ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                     >
                       {isPositive ? '+' : ''}
-                      {formatMoney(pnl, asset.currency)}
+                      {formatMoney(s.totalPnL, s.currency)}
                     </p>
-                    {asset.currency !== 'CNY' && (
+                    {s.currency !== 'CNY' && (
                       <p className="font-mono text-[10px] text-muted-foreground">
                         ≈ {isPositive ? '+' : ''}{formatCNY(pnlCNY)}
                       </p>
@@ -225,7 +269,7 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
                     <p
                       className={`font-mono text-xs ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                     >
-                      {formatPercent(rate)}
+                      {formatPercent(s.pnlRate)}
                     </p>
                   </div>
                 </div>
@@ -239,24 +283,23 @@ export function Dashboard({ isLoggedIn }: DashboardProps) {
       <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
         <h3 className="mb-4 font-semibold text-white">年化收益率排行 Top 5</h3>
         <div className="grid grid-cols-5 gap-4">
-          {top5Ann.map((asset) => {
-            const ann = annualizedReturn(asset)
-            const isPositive = ann >= 0
+          {top5Ann.map((s) => {
+            const isPositive = s.annReturn >= 0
             return (
               <div
-                key={asset.id}
+                key={s.symbol}
                 className="rounded-lg border border-border/30 bg-background/50 p-4"
               >
                 <p className="truncate text-sm font-medium text-white">
-                  {asset.symbol}
+                  {s.symbol}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {CATEGORY_LABELS[asset.category]}
+                  {CATEGORY_LABELS[s.category as AssetCategory]}
                 </p>
                 <p
                   className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                 >
-                  {formatPercent(ann)}
+                  {formatPercent(s.annReturn)}
                 </p>
               </div>
             )

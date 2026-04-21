@@ -38,7 +38,7 @@ import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { annualizedReturn, costValue, marketValue, pnlValue, totalAnnualizedReturn, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
-import type { Asset, AssetCategory, MarketType } from '@/lib/types'
+import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
 type SortKey =
@@ -183,10 +183,11 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 interface AssetTableProps {
   isLoggedIn: boolean
+  ownerFilter?: OwnerType
 }
 
-export function AssetTable({ isLoggedIn }: AssetTableProps) {
-  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn)
+export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
+  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
