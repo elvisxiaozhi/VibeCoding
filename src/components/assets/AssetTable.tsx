@@ -403,7 +403,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     const isAnnPositive = group.annReturn >= 0
                     const pnlColor = isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
                     const annColor = isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
-                    const totalRecords = group.openLots.length + group.sellRecords.length + group.dividendRecords.length
+                    const totalRecords = group.allRecords.length
                     const hasMultiple = totalRecords > 1
                     const isExpanded = expanded.has(group.symbol)
 
@@ -436,9 +436,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               )}
                               {hasMultiple && (
                                 <span className="ml-1 text-xs text-muted-foreground">
-                                  {group.openLots.length > 0 && `${group.openLots.length}买`}
-                                  {group.openLots.length > 0 && group.sellRecords.length > 0 && ' '}
-                                  {group.sellRecords.length > 0 && `${group.sellRecords.length}卖`}
+                                  {(() => {
+                                    const buyCount = group.allRecords.filter((a) => a.quantity >= 0 && (a.dividends ?? 0) === 0).length
+                                    return buyCount > 0 ? `${buyCount}买` : ''
+                                  })()}
+                                  {group.sellRecords.length > 0 && ` ${group.sellRecords.length}卖`}
                                   {group.dividendRecords.length > 0 && ` ${group.dividendRecords.length}息`}
                                 </span>
                               )}
@@ -522,6 +524,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                         {hasMultiple && isExpanded && group.allRecords.map((record) => {
                           const isSell = record.quantity < 0
                           const isDividend = record.quantity === 0 && (record.dividends ?? 0) > 0
+                          const isConsumed = record.quantity === 0 && (record.dividends ?? 0) === 0
 
                           if (isDividend) {
                             // 分红记录
@@ -531,6 +534,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   <span className="border-l-2 border-amber-500/50 pl-2 text-amber-500/80">
                                     {record.purchasedAt.slice(0, 10)} 分红
                                   </span>
+                                  {record.note && (
+                                    <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
+                                      {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
+                                    </span>
+                                  )}
                                 </TableCell>
                                 <TableCell />
                                 <TableCell />
@@ -560,6 +568,37 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                             )
                           }
 
+                          if (isConsumed) {
+                            // 已被卖出消耗的买入记录 (qty=0, div=0)
+                            return (
+                              <TableRow key={record.id} className="bg-muted/10 opacity-50">
+                                <TableCell className="pl-10 text-sm">
+                                  <span className="border-l-2 border-muted-foreground/30 pl-2 text-muted-foreground">
+                                    {record.purchasedAt.slice(0, 10)} 买入（已清仓）
+                                  </span>
+                                  {record.note && (
+                                    <span className="ml-2 text-xs text-muted-foreground/40" title={record.note}>
+                                      {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell />
+                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                  0
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                  {formatMoney(record.costBasis, record.currency)}
+                                </TableCell>
+                                <TableCell />
+                                <TableCell />
+                                <TableCell />
+                                <TableCell />
+                                <TableCell />
+                                {isLoggedIn && <TableCell />}
+                              </TableRow>
+                            )
+                          }
+
                           if (isSell) {
                             // 卖出记录：costBasis=买入成本, currentPrice=卖出价
                             const qty = Math.abs(record.quantity)
@@ -572,6 +611,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   <span className="border-l-2 border-[#22c55e]/50 pl-2 text-[#22c55e]/80">
                                     {record.purchasedAt.slice(0, 10)} 卖出
                                   </span>
+                                  {record.note && (
+                                    <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
+                                      {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
+                                    </span>
+                                  )}
                                 </TableCell>
                                 <TableCell />
                                 <TableCell className="text-right font-mono text-sm text-[#22c55e]/70">
@@ -634,6 +678,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 <span className="border-l-2 border-[#ef4444]/50 pl-2">
                                   {record.purchasedAt.slice(0, 10)} 买入
                                 </span>
+                                {record.note && (
+                                  <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
+                                    {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell />
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">

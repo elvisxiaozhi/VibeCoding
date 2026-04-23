@@ -72,6 +72,7 @@ type createRequest struct {
 	Currency     string  `json:"currency"`
 	Dividends    float64 `json:"dividends"`
 	Owner        string  `json:"owner"`
+	Note         string  `json:"note"`
 	PurchasedAt  string  `json:"purchasedAt"`
 }
 
@@ -102,6 +103,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 		Currency:     req.Currency,
 		Dividends:    req.Dividends,
 		Owner:        req.Owner,
+		Note:         req.Note,
 		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -137,6 +139,7 @@ type updateRequest struct {
 	Currency     string  `json:"currency"`
 	Dividends    float64 `json:"dividends"`
 	Owner        string  `json:"owner"`
+	Note         string  `json:"note"`
 	PurchasedAt  string  `json:"purchasedAt"`
 }
 
@@ -175,6 +178,7 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		Currency:     req.Currency,
 		Dividends:    req.Dividends,
 		Owner:        req.Owner,
+		Note:         req.Note,
 		PurchasedAt:  req.PurchasedAt,
 		CreatedAt:    existing.CreatedAt,
 		UpdatedAt:    now,

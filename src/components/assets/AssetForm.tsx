@@ -33,6 +33,7 @@ export interface AssetFormData {
   purchasedAt: string
   dividends: number
   owner: OwnerType
+  note: string
 }
 
 interface FormErrors {
@@ -53,6 +54,7 @@ const EMPTY_FORM: AssetFormData = {
   purchasedAt: new Date().toISOString().slice(0, 10),
   dividends: 0,
   owner: 'me',
+  note: '',
 }
 
 export function AssetForm({
@@ -82,6 +84,7 @@ export function AssetForm({
         purchasedAt: asset.purchasedAt ? asset.purchasedAt.slice(0, 10) : asset.createdAt.slice(0, 10),
         dividends: asset.dividends ?? 0,
         owner: (asset.owner as OwnerType) || 'me',
+        note: asset.note ?? '',
       })
     } else {
       setForm(EMPTY_FORM)
@@ -293,6 +296,17 @@ export function AssetForm({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* 备注 */}
+          <div className="space-y-2">
+            <Label htmlFor="note">备注</Label>
+            <Input
+              id="note"
+              placeholder="可选备注"
+              value={form.note}
+              onChange={(e) => setField('note', e.target.value)}
+            />
           </div>
 
           <DialogFooter>

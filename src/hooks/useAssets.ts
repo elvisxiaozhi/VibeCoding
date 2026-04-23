@@ -86,6 +86,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
         currency: patch.currency ?? current.currency,
         dividends: patch.dividends ?? current.dividends,
         owner: patch.owner ?? current.owner,
+        note: patch.note ?? current.note,
         purchasedAt: patch.purchasedAt ?? current.purchasedAt,
       }
 
@@ -176,6 +177,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
                     quantity: a.quantity,
                     currency: a.currency,
                     owner: a.owner,
+                    note: a.note,
                     purchasedAt: a.purchasedAt,
                   }),
                 }).then(() => undefined),

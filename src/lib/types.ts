@@ -54,6 +54,7 @@ export interface Asset {
   currency: string
   dividends: number
   owner: OwnerType
+  note: string
   purchasedAt: string
   createdAt: string
   updatedAt: string
