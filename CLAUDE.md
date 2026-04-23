@@ -53,6 +53,9 @@
 - ✅ **Step 23 — 年化收益率修正 + 红涨绿跌 + 美股实时行情**（见 `docs/steps/step-23-report.md`）
 - ✅ **Step 24 — 分红记录追踪 + 逐笔时间线展示**（见 `docs/steps/step-24-report.md`）
 
+### Phase 10 — 数据完善与 XIRR
+- ✅ **Step 25 — 年化 XIRR 修正 + 备注字段 + 数据完善**（见 `docs/steps/step-25-report.md`）
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`
