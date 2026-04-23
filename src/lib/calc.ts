@@ -125,28 +125,12 @@ function parseOrigQty(note: string): number {
   return m ? parseFloat(m[1]) : 0
 }
 
-/** 成本加权 CAGR（原逻辑，无已清仓记录时使用） */
-function cagrReturn(buyLots: Asset[], extraDividends: number): number {
-  const totalCost = totalCostValue(buyLots)
-  if (totalCost === 0) return 0
-  const totalMV = totalMarketValue(buyLots)
-  const totalDiv = totalDividendValue(buyLots) + extraDividends
-  const totalRate = (totalMV - totalCost + totalDiv) / totalCost
-
-  let weightedDays = 0
-  for (const a of buyLots) {
-    const cost = costValue(a)
-    const weight = cost / totalCost
-    weightedDays += holdingDays(a) * weight
-  }
-  const avgDays = Math.max(weightedDays, 1)
-  return Math.pow(1 + totalRate, 365 / avgDays) - 1
-}
-
 /**
- * 计算一组资产记录的年化收益率
- * - 有已清仓记录（含 orig_qty）时：用 XIRR（全量现金流）
- * - 否则：用成本加权 CAGR（与原逻辑一致）
+ * 计算一组资产记录的年化收益率 — 全部使用 XIRR
+ * 现金流构建规则：
+ * - 活跃买入、分红、当前总市值：始终纳入
+ * - 已清仓买入（仅当 note 含 orig_qty）+ 卖出：仅在有 orig_qty 时成对纳入
+ *   （否则卖出是没有对应买入流出的"无主"流入，会严重高估 XIRR）
  */
 export function holdingsXIRR(
   buyLots: Asset[],
@@ -156,15 +140,9 @@ export function holdingsXIRR(
 ): number {
   if (buyLots.length === 0 && consumedRecords.length === 0) return 0
 
-  // 只有存在可解析原始份额的已清仓记录时，才启用全量 XIRR
   const validConsumed = consumedRecords.filter((a) => parseOrigQty(a.note ?? '') > 0)
-  if (validConsumed.length === 0) {
-    // 回退到 CAGR
-    const extraDiv = divRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
-    return cagrReturn(buyLots, extraDiv)
-  }
+  const includeHistorical = validConsumed.length > 0
 
-  // 全量 XIRR
   const cashflows: Cashflow[] = []
 
   // 活跃持仓买入 = 资金流出（负）
@@ -175,29 +153,29 @@ export function holdingsXIRR(
     })
   }
 
-  // 已清仓买入 = 资金流出（负），从 note 解析原始份额
-  for (const a of validConsumed) {
-    const origQty = parseOrigQty(a.note ?? '')
-    cashflows.push({
-      amount: -(a.costBasis * origQty),
-      date: new Date(a.purchasedAt),
-    })
-  }
-
-  // 卖出 = 资金流入（正）
-  for (const a of sellRecords) {
-    cashflows.push({
-      amount: a.currentPrice * Math.abs(a.quantity),
-      date: new Date(a.purchasedAt),
-    })
-  }
-
   // 分红 = 资金流入（正）
   for (const a of divRecords) {
     const div = a.dividends ?? 0
     if (div > 0) {
       cashflows.push({
         amount: div,
+        date: new Date(a.purchasedAt),
+      })
+    }
+  }
+
+  // 已清仓买入 + 卖出仅在有原始份额数据时成对纳入
+  if (includeHistorical) {
+    for (const a of validConsumed) {
+      const origQty = parseOrigQty(a.note ?? '')
+      cashflows.push({
+        amount: -(a.costBasis * origQty),
+        date: new Date(a.purchasedAt),
+      })
+    }
+    for (const a of sellRecords) {
+      cashflows.push({
+        amount: a.currentPrice * Math.abs(a.quantity),
         date: new Date(a.purchasedAt),
       })
     }
