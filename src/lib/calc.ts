@@ -69,24 +69,99 @@ export function annualizedReturn(asset: Asset): number {
   return Math.pow(1 + rate, 365 / days) - 1
 }
 
-/** 组合年化收益率（真实 CAGR，含分红） */
-export function totalAnnualizedReturn(assets: Asset[], extraDividends = 0): number {
-  const totalCost = totalCostValue(assets)
-  if (totalCost === 0) return 0
-  const totalMV = totalMarketValue(assets)
-  const totalDiv = totalDividendValue(assets) + extraDividends
-  const totalRate = (totalMV - totalCost + totalDiv) / totalCost
+/** 单笔现金流 */
+interface Cashflow {
+  amount: number  // 负 = 流出（买入），正 = 流入（卖出/分红/当前市值）
+  date: Date
+}
 
-  // 成本加权平均持有天数
-  let weightedDays = 0
-  for (const a of assets) {
-    const cost = costValue(a)
-    const weight = cost / totalCost
-    weightedDays += holdingDays(a) * weight
+/**
+ * XIRR：用 Newton-Raphson 求使 NPV=0 的年化收益率
+ * NPV = Σ CF_i / (1 + r)^((d_i - d_0) / 365)
+ */
+export function xirrRate(cashflows: Cashflow[], guess = 0.1): number {
+  if (cashflows.length < 2) return 0
+
+  const sorted = [...cashflows].sort((a, b) => a.date.getTime() - b.date.getTime())
+  const d0 = sorted[0].date.getTime()
+  const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000
+
+  function npv(r: number): number {
+    let sum = 0
+    for (const cf of sorted) {
+      const years = (cf.date.getTime() - d0) / MS_PER_YEAR
+      sum += cf.amount / Math.pow(1 + r, years)
+    }
+    return sum
   }
-  const avgDays = Math.max(weightedDays, 1)
 
-  return Math.pow(1 + totalRate, 365 / avgDays) - 1
+  function dnpv(r: number): number {
+    let sum = 0
+    for (const cf of sorted) {
+      const years = (cf.date.getTime() - d0) / MS_PER_YEAR
+      sum -= years * cf.amount / Math.pow(1 + r, years + 1)
+    }
+    return sum
+  }
+
+  let rate = guess
+  for (let i = 0; i < 200; i++) {
+    const f = npv(rate)
+    if (Math.abs(f) < 1e-6) return rate
+    const df = dnpv(rate)
+    if (Math.abs(df) < 1e-12) break
+    let next = rate - f / df
+    // 防止发散
+    if (next < -0.99) next = (rate - 0.99) / 2
+    if (next > 10) next = (rate + 10) / 2
+    rate = next
+  }
+  return rate
+}
+
+/**
+ * 基于 XIRR 计算一组持仓 + 分红记录的年化收益率
+ * @param buyLots 持仓记录（qty > 0）
+ * @param divRecords 分红记录（qty = 0, div > 0），可选
+ */
+export function holdingsXIRR(buyLots: Asset[], divRecords: Asset[] = []): number {
+  if (buyLots.length === 0) return 0
+
+  const cashflows: Cashflow[] = []
+
+  // 买入 = 资金流出（负）
+  for (const a of buyLots) {
+    cashflows.push({
+      amount: -(a.costBasis * a.quantity),
+      date: new Date(a.purchasedAt),
+    })
+  }
+
+  // 分红 = 资金流入（正）
+  for (const a of divRecords) {
+    const div = a.dividends ?? 0
+    if (div > 0) {
+      cashflows.push({
+        amount: div,
+        date: new Date(a.purchasedAt),
+      })
+    }
+  }
+
+  // 当前总市值 = 资金流入（正），日期为今天
+  const totalMV = buyLots.reduce((s, a) => s + a.currentPrice * a.quantity, 0)
+  cashflows.push({
+    amount: totalMV,
+    date: new Date(),
+  })
+
+  return xirrRate(cashflows)
+}
+
+/** 组合年化收益率 — XIRR（含分红） */
+export function totalAnnualizedReturn(assets: Asset[], _extraDividends = 0, divRecords: Asset[] = []): number {
+  if (assets.length === 0) return 0
+  return holdingsXIRR(assets, divRecords)
 }
 
 export interface CategoryBreakdownItem {

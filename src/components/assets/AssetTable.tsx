@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
-import { annualizedReturn, costValue, marketValue, pnlValue, totalAnnualizedReturn, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { annualizedReturn, costValue, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
@@ -126,7 +126,7 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     const totalMV = totalMarketValue(openLots)
     const totalDiv = dividendRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
     const totalPnL = totalPnLValue(openLots) + totalDiv
-    const annReturn = totalAnnualizedReturn(openLots, totalDiv)
+    const annReturn = holdingsXIRR(openLots, dividendRecords)
 
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
@@ -348,7 +348,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
         const groupPnLCNY = groupMVCNY - groupCostCNY
-        const groupAnn = totalAnnualizedReturn(allOpenLots)
+        const allGroupDivs = symbolGroups.flatMap((g) => g.dividendRecords)
+        const groupAnn = holdingsXIRR(allOpenLots, allGroupDivs)
         const isGroupPositive = groupPnLCNY >= 0
         const isGroupAnnPositive = groupAnn >= 0
 

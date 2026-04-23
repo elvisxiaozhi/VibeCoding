@@ -12,7 +12,7 @@ import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
-import { type CategoryBreakdownItem, costValue, dividendValue, marketValue, totalAnnualizedReturn, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { type CategoryBreakdownItem, costValue, dividendValue, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
@@ -57,7 +57,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
   const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
-  const annReturn = totalAnnualizedReturn(holdings, totalDivCNY)
+  const annReturn = holdingsXIRR(holdings, divRecords)
   const annVariant = annReturn >= 0 ? 'profit' : 'loss'
 
   // 按分类汇总（人民币换算）
@@ -97,9 +97,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     }
     const summaries: SymbolSummary[] = []
     for (const [symbol, lots] of map) {
-      const symDivs = divRecords
-        .filter((d) => d.symbol === symbol)
-        .reduce((s, d) => s + (d.dividends ?? 0), 0)
+      const symDivRecords = divRecords.filter((d) => d.symbol === symbol)
+      const symDivs = symDivRecords.reduce((s, d) => s + (d.dividends ?? 0), 0)
       const mv = totalMarketValue(lots)
       const cost = totalCostValue(lots)
       const pnl = totalPnLValue(lots) + symDivs
@@ -113,7 +112,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         totalCost: cost,
         totalPnL: pnl,
         pnlRate: cost === 0 ? 0 : pnl / cost,
-        annReturn: totalAnnualizedReturn(lots, symDivs),
+        annReturn: holdingsXIRR(lots, symDivRecords),
       })
     }
     return summaries
@@ -201,7 +200,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {marketSummary.map(({ market, assets: group }) => {
             const mvCNY = group.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
-            const ann = totalAnnualizedReturn(group)
+            const groupDivs = divRecords.filter((d) => (d.market || 'cn') === market)
+            const ann = holdingsXIRR(group, groupDivs)
             const isAnnPositive = ann >= 0
             const ratio = totalValueCNY === 0 ? 0 : mvCNY / totalValueCNY
 
