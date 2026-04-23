@@ -48,6 +48,10 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const holdings = assets.filter((a) => a.quantity > 0)
   // 分红记录（qty = 0, dividends > 0）
   const divRecords = assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
+  // 已清仓买入记录（qty = 0, div = 0, note 含 orig_qty）
+  const consumedRecords = assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
+  // 卖出记录（qty < 0）
+  const sellRecords = assets.filter((a) => a.quantity < 0)
 
   // 汇率换算后的总值（人民币），含分红
   const totalValueCNY = holdings.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
@@ -57,7 +61,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
   const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
-  const annReturn = holdingsXIRR(holdings, divRecords)
+  const annReturn = holdingsXIRR(holdings, divRecords, consumedRecords, sellRecords)
   const annVariant = annReturn >= 0 ? 'profit' : 'loss'
 
   // 按分类汇总（人民币换算）
@@ -98,6 +102,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     const summaries: SymbolSummary[] = []
     for (const [symbol, lots] of map) {
       const symDivRecords = divRecords.filter((d) => d.symbol === symbol)
+      const symConsumed = consumedRecords.filter((d) => d.symbol === symbol)
+      const symSells = sellRecords.filter((d) => d.symbol === symbol)
       const symDivs = symDivRecords.reduce((s, d) => s + (d.dividends ?? 0), 0)
       const mv = totalMarketValue(lots)
       const cost = totalCostValue(lots)
@@ -112,7 +118,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         totalCost: cost,
         totalPnL: pnl,
         pnlRate: cost === 0 ? 0 : pnl / cost,
-        annReturn: holdingsXIRR(lots, symDivRecords),
+        annReturn: holdingsXIRR(lots, symDivRecords, symConsumed, symSells),
       })
     }
     return summaries
@@ -201,7 +207,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           {marketSummary.map(({ market, assets: group }) => {
             const mvCNY = group.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
             const groupDivs = divRecords.filter((d) => (d.market || 'cn') === market)
-            const ann = holdingsXIRR(group, groupDivs)
+            const groupConsumed = consumedRecords.filter((d) => (d.market || 'cn') === market)
+            const groupSells = sellRecords.filter((d) => (d.market || 'cn') === market)
+            const ann = holdingsXIRR(group, groupDivs, groupConsumed, groupSells)
             const isAnnPositive = ann >= 0
             const ratio = totalValueCNY === 0 ? 0 : mvCNY / totalValueCNY
 

@@ -126,7 +126,8 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     const totalMV = totalMarketValue(openLots)
     const totalDiv = dividendRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
     const totalPnL = totalPnLValue(openLots) + totalDiv
-    const annReturn = holdingsXIRR(openLots, dividendRecords)
+    const consumedRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
+    const annReturn = holdingsXIRR(openLots, dividendRecords, consumedRecords, sellRecords)
 
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
@@ -349,7 +350,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
         const groupPnLCNY = groupMVCNY - groupCostCNY
         const allGroupDivs = symbolGroups.flatMap((g) => g.dividendRecords)
-        const groupAnn = holdingsXIRR(allOpenLots, allGroupDivs)
+        const allGroupConsumed = symbolGroups.flatMap((g) => g.allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')))
+        const allGroupSells = symbolGroups.flatMap((g) => g.sellRecords)
+        const groupAnn = holdingsXIRR(allOpenLots, allGroupDivs, allGroupConsumed, allGroupSells)
         const isGroupPositive = groupPnLCNY >= 0
         const isGroupAnnPositive = groupAnn >= 0
 

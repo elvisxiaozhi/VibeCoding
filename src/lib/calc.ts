@@ -119,20 +119,52 @@ export function xirrRate(cashflows: Cashflow[], guess = 0.1): number {
   return rate
 }
 
+/** 从 note 中解析 orig_qty:123.45 格式的原始份额 */
+function parseOrigQty(note: string): number {
+  const m = note.match(/orig_qty:([\d.]+)/)
+  return m ? parseFloat(m[1]) : 0
+}
+
 /**
- * 基于 XIRR 计算一组持仓 + 分红记录的年化收益率
+ * 基于 XIRR 计算一组资产记录的年化收益率
  * @param buyLots 持仓记录（qty > 0）
  * @param divRecords 分红记录（qty = 0, div > 0），可选
+ * @param consumedRecords 已清仓买入记录（qty = 0, div = 0, note 含 orig_qty），可选
+ * @param sellRecords 卖出记录（qty < 0），可选
  */
-export function holdingsXIRR(buyLots: Asset[], divRecords: Asset[] = []): number {
-  if (buyLots.length === 0) return 0
+export function holdingsXIRR(
+  buyLots: Asset[],
+  divRecords: Asset[] = [],
+  consumedRecords: Asset[] = [],
+  sellRecords: Asset[] = [],
+): number {
+  if (buyLots.length === 0 && consumedRecords.length === 0) return 0
 
   const cashflows: Cashflow[] = []
 
-  // 买入 = 资金流出（负）
+  // 活跃持仓买入 = 资金流出（负）
   for (const a of buyLots) {
     cashflows.push({
       amount: -(a.costBasis * a.quantity),
+      date: new Date(a.purchasedAt),
+    })
+  }
+
+  // 已清仓买入 = 资金流出（负），从 note 解析原始份额
+  for (const a of consumedRecords) {
+    const origQty = parseOrigQty(a.note ?? '')
+    if (origQty > 0) {
+      cashflows.push({
+        amount: -(a.costBasis * origQty),
+        date: new Date(a.purchasedAt),
+      })
+    }
+  }
+
+  // 卖出 = 资金流入（正）
+  for (const a of sellRecords) {
+    cashflows.push({
+      amount: a.currentPrice * Math.abs(a.quantity),
       date: new Date(a.purchasedAt),
     })
   }
@@ -150,18 +182,21 @@ export function holdingsXIRR(buyLots: Asset[], divRecords: Asset[] = []): number
 
   // 当前总市值 = 资金流入（正），日期为今天
   const totalMV = buyLots.reduce((s, a) => s + a.currentPrice * a.quantity, 0)
-  cashflows.push({
-    amount: totalMV,
-    date: new Date(),
-  })
+  if (totalMV > 0) {
+    cashflows.push({
+      amount: totalMV,
+      date: new Date(),
+    })
+  }
 
+  if (cashflows.length < 2) return 0
   return xirrRate(cashflows)
 }
 
 /** 组合年化收益率 — XIRR（含分红） */
 export function totalAnnualizedReturn(assets: Asset[], _extraDividends = 0, divRecords: Asset[] = []): number {
   if (assets.length === 0) return 0
-  return holdingsXIRR(assets, divRecords)
+  return holdingsXIRR(assets, divRecords, [], [])
 }
 
 export interface CategoryBreakdownItem {
