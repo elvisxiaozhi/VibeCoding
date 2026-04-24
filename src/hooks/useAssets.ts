@@ -15,6 +15,25 @@ interface QuoteResult {
   error?: string
 }
 
+interface FundNavResult {
+  code: string
+  nav: number
+  date?: string
+  error?: string
+}
+
+// 人民币基金 symbol → 天天基金代码映射
+const FUND_CODE_MAP: Record<string, string> = {
+  '中欧时代先锋股票A': '001938',
+  '华夏鼎茂债券A': '004042',
+  '东方臻宝纯债债券A': '006210',
+  '国金惠安利率债A': '008798',
+  '大成中证红利指数A': '090010',
+  '富国天惠成长混合(LOF)A': '161005',
+  '广发聚源债券(LOF)A': '162715',
+  '鹏华丰禄债券': '003547',
+}
+
 export type AssetDraft = Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>
 export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 
@@ -190,6 +209,68 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
         }
       })
       .catch((err) => console.error('Stock price refresh failed:', err))
+  }, [isLoggedIn, loading, assets, fetchAssets])
+
+  // 页面加载时自动刷新人民币基金最新净值
+  const hasRefreshedNavs = useRef(false)
+  useEffect(() => {
+    if (!isLoggedIn || hasRefreshedNavs.current || loading || assets.length === 0) return
+    hasRefreshedNavs.current = true
+
+    // 人民币基金：market='cn' 且 symbol 在 FUND_CODE_MAP 里
+    const fundHoldings = assets.filter(
+      (a) => a.market === 'cn' && a.quantity > 0 && FUND_CODE_MAP[a.symbol],
+    )
+    if (fundHoldings.length === 0) return
+
+    // 提取唯一基金代码
+    const codeMap = new Map<string, Asset[]>()
+    for (const a of fundHoldings) {
+      const code = FUND_CODE_MAP[a.symbol]
+      const list = codeMap.get(code)
+      if (list) list.push(a)
+      else codeMap.set(code, [a])
+    }
+
+    const codes = [...codeMap.keys()].join(',')
+
+    fetch(`/api/fund-navs?codes=${codes}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((navs: FundNavResult[]) => {
+        const updates: Promise<void>[] = []
+        for (const n of navs) {
+          if (n.error || n.nav === 0) continue
+          const matched = codeMap.get(n.code)
+          if (!matched) continue
+          for (const a of matched) {
+            if (Math.abs(a.currentPrice - n.nav) > 0.0001) {
+              updates.push(
+                fetch(`/api/assets/${a.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    symbol: a.symbol,
+                    category: a.category,
+                    market: a.market,
+                    costBasis: a.costBasis,
+                    currentPrice: n.nav,
+                    quantity: a.quantity,
+                    currency: a.currency,
+                    owner: a.owner,
+                    note: a.note,
+                    purchasedAt: a.purchasedAt,
+                  }),
+                }).then(() => undefined),
+              )
+            }
+          }
+        }
+        if (updates.length > 0) {
+          Promise.all(updates).then(() => fetchAssets())
+        }
+      })
+      .catch((err) => console.error('Fund NAV refresh failed:', err))
   }, [isLoggedIn, loading, assets, fetchAssets])
 
   // 只统计持仓（qty > 0），排除卖出记录
