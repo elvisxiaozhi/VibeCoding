@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { AssetForm, type AssetFormData } from '@/components/assets/AssetForm'
+import { ClearedAssetsTable } from '@/components/assets/ClearedAssetsTable'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -193,6 +194,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
+  const [viewMode, setViewMode] = useState<'holding' | 'cleared'>('holding')
+
   // 展开状态：记录已展开的 symbol
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -333,18 +336,38 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         </div>
       )}
 
-      {/* 顶部操作栏 */}
-      {isLoggedIn && (
-        <div className="flex justify-end">
-          <Button onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            新增资产
-          </Button>
-        </div>
-      )}
+      {/* 持仓 / 已清仓 切换 */}
+      <div className="flex gap-1 rounded-lg bg-muted/30 p-1 w-fit">
+        {(['holding', 'cleared'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              viewMode === mode
+                ? 'bg-white/10 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-white'
+            }`}
+          >
+            {mode === 'holding' ? '持仓' : '已清仓'}
+          </button>
+        ))}
+      </div>
 
-      {/* 按板块分组的表格 */}
-      {groupedByMarket.map(({ market, groups: symbolGroups }) => {
+      {viewMode === 'cleared' && <ClearedAssetsTable isLoggedIn={isLoggedIn} />}
+
+      {viewMode === 'holding' && (
+        <>
+          {isLoggedIn && (
+            <div className="flex justify-end">
+              <Button onClick={handleAdd}>
+                <Plus className="mr-2 h-4 w-4" />
+                新增资产
+              </Button>
+            </div>
+          )}
+
+          {/* 按板块分组的表格 */}
+          {groupedByMarket.map(({ market, groups: symbolGroups }) => {
         const allOpenLots = symbolGroups.flatMap((g) => g.openLots)
         const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
@@ -744,7 +767,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
             </div>
           </div>
         )
-      })}
+          })}
+        </>
+      )}
 
       {/* 新增/编辑表单弹窗 */}
       {isLoggedIn && (

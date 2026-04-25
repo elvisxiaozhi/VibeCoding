@@ -43,6 +43,19 @@ export const OWNER_LABELS: Record<OwnerType, string> = {
 
 export const OWNER_OPTIONS: OwnerType[] = ['me', 'wife']
 
+export interface ClearedAsset {
+  symbol: string
+  category: AssetCategory
+  market: MarketType
+  currency: string
+  totalCost: number
+  totalProceeds: number
+  totalDividends: number
+  pnl: number
+  firstBuyDate: string
+  lastSellDate: string
+}
+
 export interface Asset {
   id: string
   symbol: string

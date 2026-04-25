@@ -1,0 +1,26 @@
+[
+  {
+    "symbol": "RUM Rumble",
+    "category": "stock",
+    "market": "us",
+    "currency": "USD",
+    "totalCost": 26.0,
+    "totalProceeds": 28.28,
+    "totalDividends": 0,
+    "pnl": 2.28,
+    "firstBuyDate": "2024-12-23",
+    "lastSellDate": "2024-12-24"
+  },
+  {
+    "symbol": "SGOV iShares 0-3M Treasury Bond",
+    "category": "etf",
+    "market": "us",
+    "currency": "USD",
+    "totalCost": 1306.69,
+    "totalProceeds": 1308.83,
+    "totalDividends": 5.83,
+    "pnl": 7.96,
+    "firstBuyDate": "2024-10-16",
+    "lastSellDate": "2025-01-29"
+  }
+]
