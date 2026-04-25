@@ -3,6 +3,7 @@
 
 import csv
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ ETFS = {'BOXX', 'QQQM', 'SPYM', 'SPLG', 'TLT', 'VTWO', 'SGOV'}
 DESCRIPTIONS = {
     'AAPL': 'Apple',
     'BOXX': 'Alpha Architect 1-3M Box',
+    'BRK B': 'Berkshire Hathaway B',
     'META': 'Meta Platforms',
     'MSFT': 'Microsoft',
     'NVDA': 'Nvidia',
@@ -213,11 +215,24 @@ def to_json(lots: list[Lot], sells: list[SellRecord], close_prices: dict[str, fl
     return result
 
 
-def parse_dividends(filepaths: list[str]) -> list[DividendRecord]:
-    """从所有 CSV 中提取每笔分红记录（去重重叠期间）"""
-    records: list[DividendRecord] = []
-    seen: set[tuple] = set()
+_DIV_SUFFIX_RE = re.compile(r'\s*\([^()]*\)\s*$')  # 末尾 " (Ordinary Dividend)" 之类
+_WHT_SUFFIX = ' - US Tax'
 
+
+def _normalize_div_desc(desc: str) -> str:
+    return _DIV_SUFFIX_RE.sub('', desc).strip()
+
+
+def _normalize_wht_desc(desc: str) -> str:
+    if desc.endswith(_WHT_SUFFIX):
+        return desc[:-len(_WHT_SUFFIX)].strip()
+    return desc.strip()
+
+
+def parse_dividends(filepaths: list[str]) -> list[DividendRecord]:
+    """从所有 CSV 中提取每笔分红毛额，扣预扣税、加退税，得到净分红"""
+    # 1. 收集分红毛额：(date, normalized_desc) → (sym, gross)
+    gross: dict[tuple, tuple[str, float]] = {}
     for filepath in filepaths:
         with open(filepath, 'r') as f:
             for line in f:
@@ -226,24 +241,52 @@ def parse_dividends(filepaths: list[str]) -> list[DividendRecord]:
                 row = list(csv.reader([line]))[0]
                 if len(row) < 6 or row[2] == 'Total':
                     continue
-                date = row[3]
-                desc = row[4]
-                amount = float(row[5])
-                # 跳过空 symbol（如小计行）
-                sym_check = desc.split('(')[0].strip()
-                if not sym_check:
+                date, desc, amount = row[3], row[4], float(row[5])
+                sym_raw = desc.split('(')[0].strip()
+                if not sym_raw:
                     continue
+                norm = _normalize_div_desc(desc)
+                key = (date, norm)
+                if key in gross:
+                    continue  # 跨文件去重
+                sym = TICKER_RENAME.get(sym_raw, sym_raw)
+                gross[key] = (sym, amount)
 
-                # 去重
-                key = (date, desc, amount)
-                if key in seen:
+    # 2. 收集税务调整：每个文件单独，跨文件按 (date, desc, amount) 取最大计数（避免重叠期重复）
+    file_tax: list[list[tuple]] = []
+    for filepath in filepaths:
+        rows: list[tuple] = []
+        with open(filepath, 'r') as f:
+            for line in f:
+                if not line.startswith('Withholding Tax,Data,'):
                     continue
-                seen.add(key)
+                row = list(csv.reader([line]))[0]
+                if len(row) < 6 or row[2] == 'Total':
+                    continue
+                date, desc_tax, amount = row[3], row[4], float(row[5])
+                rows.append((date, desc_tax, amount))
+        file_tax.append(rows)
 
-                # 提取 symbol（格式如 "TLT(US...)" 或 "SPLG(US...)"）
-                sym = desc.split('(')[0].strip()
-                sym = TICKER_RENAME.get(sym, sym)
-                records.append(DividendRecord(symbol=sym, date=date, amount=amount))
+    occ_max: dict[tuple, int] = defaultdict(int)
+    for rows in file_tax:
+        local: dict[tuple, int] = defaultdict(int)
+        for r in rows:
+            local[r] += 1
+        for k, n in local.items():
+            occ_max[k] = max(occ_max[k], n)
+
+    tax_adj: dict[tuple, float] = defaultdict(float)
+    for (date, desc_tax, amount), n in occ_max.items():
+        norm = _normalize_wht_desc(desc_tax)
+        tax_adj[(date, norm)] += amount * n
+
+    # 3. 合并：净分红 = 毛额 + 税务调整（负扣正退，全退则 net = gross）
+    records: list[DividendRecord] = []
+    for (date, desc), (sym, gross_amt) in gross.items():
+        net = gross_amt + tax_adj.get((date, desc), 0.0)
+        if abs(net) < 0.01:
+            continue  # 极少数 net=0 跳过
+        records.append(DividendRecord(symbol=sym, date=date, amount=net))
 
     return records
 
@@ -292,8 +335,9 @@ def parse_cash_balances(filepath: str) -> list[dict]:
 
 def main():
     files = [
-        'deploy/ibkr/U15119982_20241003_20251003.csv',
-        'deploy/ibkr/U15119982_20250901_20260417.csv',
+        'deploy/IBKR/U15119982_20241003_20251003.csv',
+        'deploy/IBKR/U15119982_20250901_20260417.csv',
+        'deploy/IBKR/U15119982_20260101_20260423.csv',
     ]
 
     # 解析所有交易
@@ -315,6 +359,14 @@ def main():
     lots, sell_records = process_fifo(all_trades)
     print(f'  剩余 lots: {len(lots)}, 卖出记录: {len(sell_records)}', file=sys.stderr)
 
+    # 规则 3：最终持仓为 0 的 symbol，整体不导入（含分红、卖出记录）
+    held_symbols = {lot.symbol for lot in lots if lot.quantity > 0}
+    cleared_symbols = {s.symbol for s in sell_records} - held_symbols
+    if cleared_symbols:
+        before = len(sell_records)
+        sell_records = [s for s in sell_records if s.symbol in held_symbols]
+        print(f'  规则 3 排除清仓 symbol {sorted(cleared_symbols)}：卖出记录 {before} → {len(sell_records)}', file=sys.stderr)
+
     # 按标的汇总数量
     qty_by_sym: dict[str, float] = defaultdict(float)
     for lot in lots:
@@ -334,8 +386,10 @@ def main():
     # 获取最新收盘价
     close_prices = parse_close_prices(files[-1])
 
-    # 解析分红记录（逐笔）
+    # 解析分红记录（逐笔，含税务调整）
     div_records = parse_dividends(files)
+    # 规则 3 同样排除清仓 symbol 的分红
+    div_records = [d for d in div_records if d.symbol in held_symbols]
     if div_records:
         div_by_sym: dict[str, float] = defaultdict(float)
         for d in div_records:
