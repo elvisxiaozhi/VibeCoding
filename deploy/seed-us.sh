@@ -1,10 +1,10 @@
 #!/bin/bash
-# 只重置 market='us' 的资产：从 deploy/seed-ibkr.json 导入
+# 只重置 market='us' 的资产：从 deploy/seed-us.json 导入
 # 用法：bash deploy/seed-us.sh
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DATA_FILE="$SCRIPT_DIR/seed-ibkr.json"
+DATA_FILE="$SCRIPT_DIR/seed-us.json"
 API_BASE="http://62.234.19.227"
 
 [ -f "$DATA_FILE" ] || { echo "错误：找不到 $DATA_FILE"; exit 1; }

@@ -35,7 +35,7 @@ ios/AssetDashboard.xcodeproj/project.xcworkspace/xcuserdata/
 
 # 真实数据种子和原始交易文件（不进 git）
 deploy/seed-real.json
-deploy/ibkr/
-deploy/alipay/
+deploy/us/
+deploy/cn/
 deploy/hk/
 deploy/data-rules.md
