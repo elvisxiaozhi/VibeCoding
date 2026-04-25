@@ -159,20 +159,30 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     const usHoldings = assets.filter(
       (a) => a.market === 'us' && a.quantity > 0 && a.category !== 'cash',
     )
-    if (usHoldings.length === 0) return
+    const hkHoldings = assets.filter(
+      (a) => a.market === 'hk' && a.quantity > 0 && a.category !== 'cash',
+    )
+    if (usHoldings.length === 0 && hkHoldings.length === 0) return
 
-    // 提取唯一 ticker（symbol 格式 "AAPL Apple"）
+    // 提取唯一 ticker（symbol 格式 "AAPL Apple" 或 "06883 颖通控股"）
     const tickerMap = new Map<string, Asset[]>()
-    for (const a of usHoldings) {
+    for (const a of [...usHoldings, ...hkHoldings]) {
       const ticker = a.symbol.split(' ')[0]
       const list = tickerMap.get(ticker)
       if (list) list.push(a)
       else tickerMap.set(ticker, [a])
     }
 
-    const symbols = [...tickerMap.keys()].join(',')
+    const usTickers = usHoldings.map((a) => a.symbol.split(' ')[0])
+    const usSymbols = [...new Set(usTickers)].join(',')
+    const hkTickers = hkHoldings.map((a) => a.symbol.split(' ')[0])
+    const hkSymbols = [...new Set(hkTickers)].join(',')
 
-    fetch(`/api/quotes?symbols=${symbols}`, { credentials: 'include' })
+    const params = new URLSearchParams()
+    if (usSymbols) params.set('symbols', usSymbols)
+    if (hkSymbols) params.set('hkSymbols', hkSymbols)
+
+    fetch(`/api/quotes?${params}`, { credentials: 'include' })
       .then((res) => res.json())
       .then((quotes: QuoteResult[]) => {
         const updates: Promise<void>[] = []

@@ -24,30 +24,36 @@ func (h *Quotes) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/quotes", h.getQuotes)
 }
 
-// GET /api/quotes?symbols=AAPL,NVDA,MSFT
+// GET /api/quotes?symbols=AAPL,NVDA&hkSymbols=06883
 func (h *Quotes) getQuotes(w http.ResponseWriter, r *http.Request) {
 	symbolsParam := r.URL.Query().Get("symbols")
-	if symbolsParam == "" {
-		writeError(w, http.StatusBadRequest, "symbols parameter is required")
+	hkSymbolsParam := r.URL.Query().Get("hkSymbols")
+
+	if symbolsParam == "" && hkSymbolsParam == "" {
+		writeError(w, http.StatusBadRequest, "symbols or hkSymbols parameter is required")
 		return
 	}
 
-	symbols := strings.Split(symbolsParam, ",")
-	if len(symbols) > 50 {
+	var usSymbols, hkSymbols []string
+	for _, s := range strings.Split(symbolsParam, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			usSymbols = append(usSymbols, s)
+		}
+	}
+	for _, s := range strings.Split(hkSymbolsParam, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			hkSymbols = append(hkSymbols, s)
+		}
+	}
+
+	if len(usSymbols)+len(hkSymbols) > 50 {
 		writeError(w, http.StatusBadRequest, "too many symbols (max 50)")
 		return
 	}
 
-	// 清理并构建 Sina 查询参数
-	var cleanSymbols []string
-	for _, s := range symbols {
-		s = strings.TrimSpace(s)
-		if s != "" {
-			cleanSymbols = append(cleanSymbols, s)
-		}
-	}
-
-	results, err := fetchSinaPrices(cleanSymbols)
+	results, err := fetchSinaPrices(usSymbols, hkSymbols)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -56,17 +62,31 @@ func (h *Quotes) getQuotes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, results)
 }
 
-// fetchSinaPrices 通过新浪财经 API 批量获取美股报价
-// API: https://hq.sinajs.cn/list=gb_aapl,gb_nvda,...
-// 返回格式: var hq_str_gb_aapl="苹果,270.23,..."
-func fetchSinaPrices(symbols []string) ([]QuoteResult, error) {
-	// 构建 sina 参数：美股前缀 gb_，小写
+type sinaSymbolInfo struct {
+	original   string
+	priceField int // 美股 field[1]，港股 field[3]
+}
+
+// fetchSinaPrices 通过新浪财经 API 批量获取美股 + 港股报价
+// 美股: gb_aapl → var hq_str_gb_aapl="苹果,270.23,..."  price=field[1]
+// 港股: hk06883 → var hq_str_hk06883="颖通控股,2.01,1.98,1.99,..."  price=field[3]
+func fetchSinaPrices(usSymbols []string, hkSymbols []string) ([]QuoteResult, error) {
 	var sinaSymbols []string
-	symbolMap := make(map[string]string) // gb_aapl -> AAPL
-	for _, s := range symbols {
-		sinaKey := "gb_" + strings.ToLower(s)
-		sinaSymbols = append(sinaSymbols, sinaKey)
-		symbolMap[sinaKey] = s
+	symbolMap := make(map[string]sinaSymbolInfo)
+
+	for _, s := range usSymbols {
+		key := "gb_" + strings.ToLower(s)
+		sinaSymbols = append(sinaSymbols, key)
+		symbolMap[key] = sinaSymbolInfo{original: s, priceField: 1}
+	}
+	for _, s := range hkSymbols {
+		key := "hk" + s
+		sinaSymbols = append(sinaSymbols, key)
+		symbolMap[key] = sinaSymbolInfo{original: s, priceField: 3}
+	}
+
+	if len(sinaSymbols) == 0 {
+		return []QuoteResult{}, nil
 	}
 
 	url := "https://hq.sinajs.cn/list=" + strings.Join(sinaSymbols, ",")
@@ -92,7 +112,7 @@ func fetchSinaPrices(symbols []string) ([]QuoteResult, error) {
 	// 解析返回数据
 	// 每行格式: var hq_str_gb_aapl="name,price,...";
 	lines := strings.Split(string(body), "\n")
-	results := make([]QuoteResult, 0, len(symbols))
+	results := make([]QuoteResult, 0, len(sinaSymbols))
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -107,9 +127,9 @@ func fetchSinaPrices(symbols []string) ([]QuoteResult, error) {
 		}
 		varPart := line[:eqIdx]                           // var hq_str_gb_aapl
 		varPart = strings.TrimPrefix(varPart, "var ")     // hq_str_gb_aapl
-		sinaKey := strings.TrimPrefix(varPart, "hq_str_") // gb_aapl
+		sinaKey := strings.TrimPrefix(varPart, "hq_str_")
 
-		originalSymbol, ok := symbolMap[sinaKey]
+		info, ok := symbolMap[sinaKey]
 		if !ok {
 			continue
 		}
@@ -119,36 +139,23 @@ func fetchSinaPrices(symbols []string) ([]QuoteResult, error) {
 		dataPart = strings.Trim(dataPart, "\"';")
 
 		if dataPart == "" {
-			results = append(results, QuoteResult{
-				Symbol: originalSymbol,
-				Error:  "no data",
-			})
+			results = append(results, QuoteResult{Symbol: info.original, Error: "no data"})
 			continue
 		}
 
-		// 逗号分隔，第2个字段是最新价
 		fields := strings.Split(dataPart, ",")
-		if len(fields) < 2 {
-			results = append(results, QuoteResult{
-				Symbol: originalSymbol,
-				Error:  "invalid data format",
-			})
+		if len(fields) <= info.priceField {
+			results = append(results, QuoteResult{Symbol: info.original, Error: "invalid data format"})
 			continue
 		}
 
-		price, err := strconv.ParseFloat(fields[1], 64)
+		price, err := strconv.ParseFloat(fields[info.priceField], 64)
 		if err != nil {
-			results = append(results, QuoteResult{
-				Symbol: originalSymbol,
-				Error:  fmt.Sprintf("parse price failed: %v", err),
-			})
+			results = append(results, QuoteResult{Symbol: info.original, Error: fmt.Sprintf("parse price failed: %v", err)})
 			continue
 		}
 
-		results = append(results, QuoteResult{
-			Symbol: originalSymbol,
-			Price:  price,
-		})
+		results = append(results, QuoteResult{Symbol: info.original, Price: price})
 	}
 
 	return results, nil
