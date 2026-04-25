@@ -162,25 +162,28 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     const hkHoldings = assets.filter(
       (a) => a.market === 'hk' && a.quantity > 0 && a.category !== 'cash',
     )
-    if (usHoldings.length === 0 && hkHoldings.length === 0) return
+    const cryptoHoldings = assets.filter(
+      (a) => a.market === 'crypto' && a.quantity > 0,
+    )
+    if (usHoldings.length === 0 && hkHoldings.length === 0 && cryptoHoldings.length === 0) return
 
-    // 提取唯一 ticker（symbol 格式 "AAPL Apple" 或 "06883 颖通控股"）
+    // 提取唯一 ticker（symbol 格式 "AAPL Apple" / "06883 颖通控股" / "BTC"）
     const tickerMap = new Map<string, Asset[]>()
-    for (const a of [...usHoldings, ...hkHoldings]) {
+    for (const a of [...usHoldings, ...hkHoldings, ...cryptoHoldings]) {
       const ticker = a.symbol.split(' ')[0]
       const list = tickerMap.get(ticker)
       if (list) list.push(a)
       else tickerMap.set(ticker, [a])
     }
 
-    const usTickers = usHoldings.map((a) => a.symbol.split(' ')[0])
-    const usSymbols = [...new Set(usTickers)].join(',')
-    const hkTickers = hkHoldings.map((a) => a.symbol.split(' ')[0])
-    const hkSymbols = [...new Set(hkTickers)].join(',')
+    const usSymbols = [...new Set(usHoldings.map((a) => a.symbol.split(' ')[0]))].join(',')
+    const hkSymbols = [...new Set(hkHoldings.map((a) => a.symbol.split(' ')[0]))].join(',')
+    const cryptoSymbols = [...new Set(cryptoHoldings.map((a) => a.symbol.split(' ')[0]))].join(',')
 
     const params = new URLSearchParams()
     if (usSymbols) params.set('symbols', usSymbols)
     if (hkSymbols) params.set('hkSymbols', hkSymbols)
+    if (cryptoSymbols) params.set('cryptoSymbols', cryptoSymbols)
 
     fetch(`/api/quotes?${params}`, { credentials: 'include' })
       .then((res) => res.json())

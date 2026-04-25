@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,31 +25,35 @@ func (h *Quotes) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/quotes", h.getQuotes)
 }
 
-// GET /api/quotes?symbols=AAPL,NVDA&hkSymbols=06883
+// GET /api/quotes?symbols=AAPL,NVDA&hkSymbols=06883&cryptoSymbols=BTC
 func (h *Quotes) getQuotes(w http.ResponseWriter, r *http.Request) {
 	symbolsParam := r.URL.Query().Get("symbols")
 	hkSymbolsParam := r.URL.Query().Get("hkSymbols")
+	cryptoSymbolsParam := r.URL.Query().Get("cryptoSymbols")
 
-	if symbolsParam == "" && hkSymbolsParam == "" {
-		writeError(w, http.StatusBadRequest, "symbols or hkSymbols parameter is required")
+	if symbolsParam == "" && hkSymbolsParam == "" && cryptoSymbolsParam == "" {
+		writeError(w, http.StatusBadRequest, "symbols, hkSymbols, or cryptoSymbols parameter is required")
 		return
 	}
 
-	var usSymbols, hkSymbols []string
+	var usSymbols, hkSymbols, cryptoSymbols []string
 	for _, s := range strings.Split(symbolsParam, ",") {
-		s = strings.TrimSpace(s)
-		if s != "" {
+		if s = strings.TrimSpace(s); s != "" {
 			usSymbols = append(usSymbols, s)
 		}
 	}
 	for _, s := range strings.Split(hkSymbolsParam, ",") {
-		s = strings.TrimSpace(s)
-		if s != "" {
+		if s = strings.TrimSpace(s); s != "" {
 			hkSymbols = append(hkSymbols, s)
 		}
 	}
+	for _, s := range strings.Split(cryptoSymbolsParam, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			cryptoSymbols = append(cryptoSymbols, s)
+		}
+	}
 
-	if len(usSymbols)+len(hkSymbols) > 50 {
+	if len(usSymbols)+len(hkSymbols)+len(cryptoSymbols) > 50 {
 		writeError(w, http.StatusBadRequest, "too many symbols (max 50)")
 		return
 	}
@@ -57,6 +62,15 @@ func (h *Quotes) getQuotes(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if len(cryptoSymbols) > 0 {
+		cryptoResults, err := fetchCryptoPrices(cryptoSymbols)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		results = append(results, cryptoResults...)
 	}
 
 	writeJSON(w, http.StatusOK, results)
@@ -158,5 +172,59 @@ func fetchSinaPrices(usSymbols []string, hkSymbols []string) ([]QuoteResult, err
 		results = append(results, QuoteResult{Symbol: info.original, Price: price})
 	}
 
+	return results, nil
+}
+
+// fetchCryptoPrices 通过 Binance Vision API 获取加密货币报价
+// symbol 约定：BTC → BTCUSDT，ETH → ETHUSDT
+func fetchCryptoPrices(symbols []string) ([]QuoteResult, error) {
+	// Binance pair map: crypto symbol → trading pair
+	pairMap := map[string]string{
+		"BTC": "BTCUSDT",
+		"ETH": "ETHUSDT",
+	}
+
+	var results []QuoteResult
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	for _, s := range symbols {
+		sym := strings.ToUpper(s)
+		pair, ok := pairMap[sym]
+		if !ok {
+			results = append(results, QuoteResult{Symbol: sym, Error: "unsupported symbol"})
+			continue
+		}
+
+		url := "https://data-api.binance.vision/api/v3/ticker/price?symbol=" + pair
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			results = append(results, QuoteResult{Symbol: sym, Error: err.Error()})
+			continue
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			results = append(results, QuoteResult{Symbol: sym, Error: fmt.Sprintf("binance request failed: %v", err)})
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		// {"symbol":"BTCUSDT","price":"87000.12"}
+		var parsed struct {
+			Price string `json:"price"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil || parsed.Price == "" {
+			results = append(results, QuoteResult{Symbol: sym, Error: "parse failed"})
+			continue
+		}
+
+		price, err := strconv.ParseFloat(parsed.Price, 64)
+		if err != nil {
+			results = append(results, QuoteResult{Symbol: sym, Error: "parse price failed"})
+			continue
+		}
+		results = append(results, QuoteResult{Symbol: sym, Price: price})
+	}
 	return results, nil
 }
