@@ -1,14 +1,15 @@
-export type AssetCategory = 'stock' | 'etf' | 'crypto' | 'cash' | 'currency'
+export type AssetCategory = 'stock' | 'etf' | 'gold' | 'crypto' | 'cash' | 'currency'
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   stock: '股票',
   etf: 'ETF',
+  gold: '黄金',
   crypto: '加密货币',
   cash: '现金',
   currency: '货币',
 }
 
-export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'crypto', 'cash', 'currency']
+export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'gold', 'crypto', 'cash', 'currency']
 
 export type MarketType = 'cn' | 'hk' | 'us' | 'crypto'
 

@@ -6,6 +6,7 @@ type AssetCategory = string
 const (
 	CategoryStock    AssetCategory = "stock"
 	CategoryETF      AssetCategory = "etf"
+	CategoryGold     AssetCategory = "gold"
 	CategoryCrypto   AssetCategory = "crypto"
 	CategoryCash     AssetCategory = "cash"
 	CategoryCurrency AssetCategory = "currency"
