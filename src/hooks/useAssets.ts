@@ -286,6 +286,53 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
       .catch((err) => console.error('Fund NAV refresh failed:', err))
   }, [isLoggedIn, loading, assets, fetchAssets])
 
+  // 页面加载时自动刷新黄金现货价格（上海黄金交易所 Au9999，CNY/克）
+  const hasRefreshedGold = useRef(false)
+  useEffect(() => {
+    if (!isLoggedIn || hasRefreshedGold.current || loading || assets.length === 0) return
+    hasRefreshedGold.current = true
+
+    const goldHoldings = assets.filter((a) => a.category === 'gold' && a.quantity > 0)
+    if (goldHoldings.length === 0) return
+
+    fetch('/api/quotes?goldSymbol=Au9999', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((quotes: QuoteResult[]) => {
+        const goldQuote = quotes.find((q) => q.symbol === 'GOLD' && !q.error && q.price > 0)
+        if (!goldQuote) return
+
+        const updates: Promise<void>[] = []
+        for (const a of goldHoldings) {
+          if (Math.abs(a.currentPrice - goldQuote.price) > 0.01) {
+            updates.push(
+              fetch(`/api/assets/${a.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  symbol: a.symbol,
+                  category: a.category,
+                  market: a.market,
+                  costBasis: a.costBasis,
+                  currentPrice: goldQuote.price,
+                  quantity: a.quantity,
+                  currency: a.currency,
+                  dividends: a.dividends,
+                  owner: a.owner,
+                  note: a.note,
+                  purchasedAt: a.purchasedAt,
+                }),
+              }).then(() => undefined),
+            )
+          }
+        }
+        if (updates.length > 0) {
+          Promise.all(updates).then(() => fetchAssets())
+        }
+      })
+      .catch((err) => console.error('Gold price refresh failed:', err))
+  }, [isLoggedIn, loading, assets, fetchAssets])
+
   // 只统计持仓（qty > 0），排除卖出记录
   const holdings = useMemo(() => assets.filter((a) => a.quantity > 0), [assets])
   const totalValue = useMemo(() => totalMarketValue(holdings), [holdings])

@@ -25,14 +25,15 @@ func (h *Quotes) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/quotes", h.getQuotes)
 }
 
-// GET /api/quotes?symbols=AAPL,NVDA&hkSymbols=06883&cryptoSymbols=BTC
+// GET /api/quotes?symbols=AAPL,NVDA&hkSymbols=06883&cryptoSymbols=BTC&goldSymbol=Au9999
 func (h *Quotes) getQuotes(w http.ResponseWriter, r *http.Request) {
 	symbolsParam := r.URL.Query().Get("symbols")
 	hkSymbolsParam := r.URL.Query().Get("hkSymbols")
 	cryptoSymbolsParam := r.URL.Query().Get("cryptoSymbols")
+	goldSymbolParam := r.URL.Query().Get("goldSymbol")
 
-	if symbolsParam == "" && hkSymbolsParam == "" && cryptoSymbolsParam == "" {
-		writeError(w, http.StatusBadRequest, "symbols, hkSymbols, or cryptoSymbols parameter is required")
+	if symbolsParam == "" && hkSymbolsParam == "" && cryptoSymbolsParam == "" && goldSymbolParam == "" {
+		writeError(w, http.StatusBadRequest, "symbols, hkSymbols, cryptoSymbols, or goldSymbol parameter is required")
 		return
 	}
 
@@ -71,6 +72,15 @@ func (h *Quotes) getQuotes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		results = append(results, cryptoResults...)
+	}
+
+	if goldSymbolParam != "" {
+		goldResult, err := fetchGoldPrice()
+		if err != nil {
+			results = append(results, QuoteResult{Symbol: "GOLD", Error: err.Error()})
+		} else {
+			results = append(results, goldResult)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, results)
@@ -173,6 +183,113 @@ func fetchSinaPrices(usSymbols []string, hkSymbols []string) ([]QuoteResult, err
 	}
 
 	return results, nil
+}
+
+// fetchGoldPrice 获取黄金现货价格（CNY/克）
+// 优先走新浪 Au9999（交易时段），否则用 Yahoo Finance COMEX 期货 + 汇率换算
+func fetchGoldPrice() (QuoteResult, error) {
+	// 先尝试新浪财经 Au9999（交易时段返回实时价，非交易时段返回空）
+	if price, err := fetchGoldSina(); err == nil && price > 0 {
+		return QuoteResult{Symbol: "GOLD", Price: price}, nil
+	}
+
+	// 非交易时段 fallback：Binance PAXGUSDT（代币化实物黄金，1 PAXG = 1 troy oz）+ 汇率换算
+	usdPerOz, err := fetchGoldUSDPerOz()
+	if err != nil {
+		return QuoteResult{Symbol: "GOLD"}, fmt.Errorf("gold price unavailable: %w", err)
+	}
+
+	usdCNY, err := fetchUSDCNYRate()
+	if err != nil {
+		usdCNY = 7.25 // 兜底汇率
+	}
+
+	// 1 troy oz = 31.1035 g
+	cnyPerGram := usdPerOz * usdCNY / 31.1035
+	// 保留 2 位小数
+	cnyPerGram = float64(int(cnyPerGram*100+0.5)) / 100
+
+	return QuoteResult{Symbol: "GOLD", Price: cnyPerGram}, nil
+}
+
+// fetchGoldSina 通过新浪财经获取 Au9999 现货价格（CNY/克），非交易时段返回 0
+func fetchGoldSina() (float64, error) {
+	client := &http.Client{Timeout: 8 * time.Second}
+	req, err := http.NewRequest("GET", "https://hq.sinajs.cn/list=Au9999", nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Referer", "https://finance.sina.com.cn")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	line := strings.TrimSpace(string(body))
+	eqIdx := strings.Index(line, "=")
+	if eqIdx < 0 {
+		return 0, fmt.Errorf("unexpected sina format")
+	}
+	dataPart := strings.Trim(line[eqIdx+1:], "\"';")
+	if dataPart == "" {
+		return 0, nil // 非交易时段
+	}
+	fields := strings.Split(dataPart, ",")
+	if len(fields) < 2 {
+		return 0, fmt.Errorf("insufficient fields")
+	}
+	return strconv.ParseFloat(strings.TrimSpace(fields[1]), 64)
+}
+
+// fetchGoldUSDPerOz 通过 Binance PAXGUSDT 获取黄金价格（USD/troy oz）
+// PAXG = Paxos Gold，1 PAXG 对应 1 troy oz 实物黄金
+func fetchGoldUSDPerOz() (float64, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://data-api.binance.vision/api/v3/ticker/price?symbol=PAXGUSDT")
+	if err != nil {
+		return 0, fmt.Errorf("binance paxg request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var parsed struct {
+		Price string `json:"price"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil || parsed.Price == "" {
+		return 0, fmt.Errorf("parse paxg price failed")
+	}
+
+	price, err := strconv.ParseFloat(parsed.Price, 64)
+	if err != nil || price <= 0 {
+		return 0, fmt.Errorf("invalid paxg price: %s", parsed.Price)
+	}
+	return price, nil
+}
+
+// fetchUSDCNYRate 从 open.er-api.com 获取 USD/CNY 汇率
+func fetchUSDCNYRate() (float64, error) {
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Get("https://open.er-api.com/v6/latest/USD")
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var parsed struct {
+		Rates map[string]float64 `json:"rates"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return 0, err
+	}
+	rate, ok := parsed.Rates["CNY"]
+	if !ok || rate <= 0 {
+		return 0, fmt.Errorf("CNY rate not found")
+	}
+	return rate, nil
 }
 
 // fetchCryptoPrices 通过 Binance Vision API 获取加密货币报价
