@@ -12,6 +12,7 @@ import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
+import { useHistoricalRates } from '@/hooks/useHistoricalRates'
 import { type CategoryBreakdownItem, costValue, dividendValue, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
@@ -43,6 +44,7 @@ function assetCostInCNY(a: Asset, rates: Record<string, number>): number {
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { assets, loading } = useAssets(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
+  const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(assets)
 
   // 只统计持仓（qty > 0），排除卖出和分红记录
   const holdings = assets.filter((a) => a.quantity > 0)
@@ -61,8 +63,11 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
   const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
-  const annReturn = holdingsXIRR(holdings, divRecords, consumedRecords, sellRecords)
-  const annVariant = annReturn >= 0 ? 'profit' : 'loss'
+  // 历史汇率未到位前不计算 XIRR，避免缺率时出现失真数字
+  const annReturn: number | null = histLoading
+    ? null
+    : holdingsXIRR(holdings, divRecords, consumedRecords, sellRecords, getHistRate)
+  const annVariant = annReturn !== null && annReturn >= 0 ? 'profit' : 'loss'
 
   // 按分类汇总（人民币换算）
   const categoryBreakdownCNY: CategoryBreakdownItem[] = (() => {
@@ -118,7 +123,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         totalCost: cost,
         totalPnL: pnl,
         pnlRate: cost === 0 ? 0 : pnl / cost,
-        annReturn: holdingsXIRR(lots, symDivRecords, symConsumed, symSells),
+        annReturn: histLoading ? 0 : holdingsXIRR(lots, symDivRecords, symConsumed, symSells, getHistRate),
       })
     }
     return summaries
@@ -196,9 +201,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         />
         <StatCard
           title="组合年化"
-          value={formatPercent(annReturn)}
+          value={annReturn === null ? '—' : formatPercent(annReturn)}
           icon={Calendar}
-          variant={annVariant}
+          variant={annReturn === null ? 'default' : annVariant}
         />
       </div>
 
@@ -210,7 +215,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             const groupDivs = divRecords.filter((d) => (d.market || 'cn') === market)
             const groupConsumed = consumedRecords.filter((d) => (d.market || 'cn') === market)
             const groupSells = sellRecords.filter((d) => (d.market || 'cn') === market)
-            const ann = market === 'gold' ? null : holdingsXIRR(group, groupDivs, groupConsumed, groupSells)
+            const ann = market === 'gold' || histLoading
+              ? null
+              : holdingsXIRR(group, groupDivs, groupConsumed, groupSells, getHistRate)
             const isAnnPositive = (ann ?? 0) >= 0
             const ratio = totalValueCNY === 0 ? 0 : mvCNY / totalValueCNY
 
@@ -293,29 +300,33 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       {/* 年化收益率排行 */}
       <div className="rounded-xl border border-border/50 bg-card p-6 shadow">
         <h3 className="mb-4 font-semibold text-white">年化收益率排行 Top 5</h3>
-        <div className="grid grid-cols-5 gap-4">
-          {top5Ann.map((s) => {
-            const isPositive = s.annReturn >= 0
-            return (
-              <div
-                key={s.symbol}
-                className="rounded-lg border border-border/30 bg-background/50 p-4"
-              >
-                <p className="truncate text-sm font-medium text-white">
-                  {s.symbol}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {CATEGORY_LABELS[s.category as AssetCategory]}
-                </p>
-                <p
-                  className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
+        {histLoading ? (
+          <p className="text-sm text-muted-foreground">汇率加载中…</p>
+        ) : (
+          <div className="grid grid-cols-5 gap-4">
+            {top5Ann.map((s) => {
+              const isPositive = s.annReturn >= 0
+              return (
+                <div
+                  key={s.symbol}
+                  className="rounded-lg border border-border/30 bg-background/50 p-4"
                 >
-                  {formatPercent(s.annReturn)}
-                </p>
-              </div>
-            )
-          })}
-        </div>
+                  <p className="truncate text-sm font-medium text-white">
+                    {s.symbol}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {CATEGORY_LABELS[s.category as AssetCategory]}
+                  </p>
+                  <p
+                    className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
+                  >
+                    {formatPercent(s.annReturn)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

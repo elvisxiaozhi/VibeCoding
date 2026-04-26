@@ -125,19 +125,35 @@ function parseOrigQty(note: string): number {
   return m ? parseFloat(m[1]) : 0
 }
 
+/** (currency, date) → 1 单位 currency 等于多少 CNY 的查询函数 */
+export type FXRateLookup = (currency: string, date: Date) => number
+
 /**
  * 计算一组资产记录的年化收益率 — 全部使用 XIRR
+ *
  * 现金流构建规则：
  * - 活跃买入、分红、当前总市值：始终纳入
  * - 已清仓买入（仅当 note 含 orig_qty）+ 卖出：仅在有 orig_qty 时成对纳入
  *   （否则卖出是没有对应买入流出的"无主"流入，会严重高估 XIRR）
+ * - 黄金类资产（实物黄金无法回溯买入日期）整体从 XIRR 排除
+ *
+ * 多币种处理：每条 cashflow 用「事件发生日的 CNY 汇率」换算成 CNY 后再做 XIRR，
+ * 这样持有期内的汇率波动也作为收益的一部分。getRate 由调用方注入；缺省 1 等价于
+ * 「假设所有币种 = CNY」，仅用于无外汇环境的兜底。
  */
 export function holdingsXIRR(
   buyLots: Asset[],
   divRecords: Asset[] = [],
   consumedRecords: Asset[] = [],
   sellRecords: Asset[] = [],
+  getRate: FXRateLookup = () => 1,
 ): number {
+  const eligible = (a: Asset) => a.category !== 'gold'
+  buyLots = buyLots.filter(eligible)
+  divRecords = divRecords.filter(eligible)
+  consumedRecords = consumedRecords.filter(eligible)
+  sellRecords = sellRecords.filter(eligible)
+
   if (buyLots.length === 0 && consumedRecords.length === 0) return 0
 
   const validConsumed = consumedRecords.filter((a) => parseOrigQty(a.note ?? '') > 0)
@@ -145,48 +161,65 @@ export function holdingsXIRR(
 
   const cashflows: Cashflow[] = []
 
-  // 活跃持仓买入 = 资金流出（负）
+  // 活跃持仓买入 = 资金流出（负），按买入日汇率换算
   for (const a of buyLots) {
+    const date = new Date(a.purchasedAt)
+    const rate = getRate(a.currency, date)
+    if (rate <= 0) continue
     cashflows.push({
-      amount: -(a.costBasis * a.quantity),
-      date: new Date(a.purchasedAt),
+      amount: -(a.costBasis * a.quantity) * rate,
+      date,
     })
   }
 
-  // 分红 = 资金流入（正）
+  // 分红 = 资金流入（正），按派息日汇率换算
   for (const a of divRecords) {
     const div = a.dividends ?? 0
-    if (div > 0) {
-      cashflows.push({
-        amount: div,
-        date: new Date(a.purchasedAt),
-      })
-    }
+    if (div <= 0) continue
+    const date = new Date(a.purchasedAt)
+    const rate = getRate(a.currency, date)
+    if (rate <= 0) continue
+    cashflows.push({
+      amount: div * rate,
+      date,
+    })
   }
 
   // 已清仓买入 + 卖出仅在有原始份额数据时成对纳入
   if (includeHistorical) {
     for (const a of validConsumed) {
       const origQty = parseOrigQty(a.note ?? '')
+      const date = new Date(a.purchasedAt)
+      const rate = getRate(a.currency, date)
+      if (rate <= 0) continue
       cashflows.push({
-        amount: -(a.costBasis * origQty),
-        date: new Date(a.purchasedAt),
+        amount: -(a.costBasis * origQty) * rate,
+        date,
       })
     }
     for (const a of sellRecords) {
+      const date = new Date(a.purchasedAt)
+      const rate = getRate(a.currency, date)
+      if (rate <= 0) continue
       cashflows.push({
-        amount: a.currentPrice * Math.abs(a.quantity),
-        date: new Date(a.purchasedAt),
+        amount: a.currentPrice * Math.abs(a.quantity) * rate,
+        date,
       })
     }
   }
 
-  // 当前总市值 = 资金流入（正），日期为今天
-  const totalMV = buyLots.reduce((s, a) => s + a.currentPrice * a.quantity, 0)
-  if (totalMV > 0) {
+  // 当前总市值 = 资金流入（正），日期为今天，用今日汇率换算
+  const today = new Date()
+  let totalMV_CNY = 0
+  for (const a of buyLots) {
+    const rate = getRate(a.currency, today)
+    if (rate <= 0) continue
+    totalMV_CNY += a.currentPrice * a.quantity * rate
+  }
+  if (totalMV_CNY > 0) {
     cashflows.push({
-      amount: totalMV,
-      date: new Date(),
+      amount: totalMV_CNY,
+      date: today,
     })
   }
 
@@ -195,9 +228,14 @@ export function holdingsXIRR(
 }
 
 /** 组合年化收益率 — XIRR（含分红） */
-export function totalAnnualizedReturn(assets: Asset[], _extraDividends = 0, divRecords: Asset[] = []): number {
+export function totalAnnualizedReturn(
+  assets: Asset[],
+  _extraDividends = 0,
+  divRecords: Asset[] = [],
+  getRate: FXRateLookup = () => 1,
+): number {
   if (assets.length === 0) return 0
-  return holdingsXIRR(assets, divRecords, [], [])
+  return holdingsXIRR(assets, divRecords, [], [], getRate)
 }
 
 export interface CategoryBreakdownItem {

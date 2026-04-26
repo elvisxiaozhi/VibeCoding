@@ -115,3 +115,23 @@ func (s *Store) AssignOrphanAssets(userID string) error {
 	}
 	return nil
 }
+
+// GetFXRate 查指定货币、指定日期的历史汇率（1 单位货币 → CNY）
+// 未命中返回 sql.ErrNoRows
+func (s *Store) GetFXRate(currency, date string) (float64, error) {
+	var rate float64
+	err := s.db.QueryRow(`SELECT rate FROM fx_rates WHERE currency = ? AND date = ?`, currency, date).Scan(&rate)
+	return rate, err
+}
+
+// UpsertFXRate 写入/更新一条汇率
+func (s *Store) UpsertFXRate(currency, date string, rate float64) error {
+	_, err := s.db.Exec(`
+		INSERT INTO fx_rates (currency, date, rate) VALUES (?, ?, ?)
+		ON CONFLICT(currency, date) DO UPDATE SET rate = excluded.rate`,
+		currency, date, rate)
+	if err != nil {
+		return fmt.Errorf("upsert fx_rate %s/%s: %w", currency, date, err)
+	}
+	return nil
+}
