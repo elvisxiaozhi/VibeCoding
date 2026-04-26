@@ -40,6 +40,9 @@ export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
+  // 请求自增 ID，只接受最新一次 fetchAssets 的回包，避免切换 owner 时
+  // 慢的旧请求覆盖新请求，或 auto-refresh 闭包用旧 ownerFilter 重拉。
+  const fetchSeqRef = useRef(0)
 
   const fetchAssets = useCallback(async () => {
     if (!isLoggedIn) {
@@ -47,16 +50,19 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
       setLoading(false)
       return
     }
+    const seq = ++fetchSeqRef.current
     try {
       setLoading(true)
       const params = ownerFilter ? `?owner=${ownerFilter}` : ''
       const res = await fetch(`/api/assets${params}`, { credentials: 'include' })
       const data = (await res.json()) as Asset[]
+      if (seq !== fetchSeqRef.current) return
       setAssets(data)
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return
       console.error('fetchAssets failed:', err)
     } finally {
-      setLoading(false)
+      if (seq === fetchSeqRef.current) setLoading(false)
     }
   }, [isLoggedIn, ownerFilter])
 
