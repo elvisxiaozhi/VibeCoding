@@ -101,7 +101,7 @@ func TestListAssets(t *testing.T) {
 	s := setupTestStore(t)
 
 	// 空表
-	list, err := s.ListAssets(testUserID)
+	list, err := s.ListAssets(testUserID, "")
 	if err != nil {
 		t.Fatalf("ListAssets empty: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestListAssets(t *testing.T) {
 	s.CreateAsset(a1)
 	s.CreateAsset(a2)
 
-	list, err = s.ListAssets(testUserID)
+	list, err = s.ListAssets(testUserID, "")
 	if err != nil {
 		t.Fatalf("ListAssets: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestListAssets(t *testing.T) {
 	}
 
 	// 其他用户看不到
-	list, err = s.ListAssets("other-user")
+	list, err = s.ListAssets("other-user", "")
 	if err != nil {
 		t.Fatalf("ListAssets other: %v", err)
 	}
