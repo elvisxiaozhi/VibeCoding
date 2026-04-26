@@ -82,6 +82,11 @@ function formatPercent(n: number): string {
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`
 }
 
+function formatQty(qty: number, category: string): string {
+  if (category === 'crypto') return String(qty)
+  return parseFloat(qty.toFixed(2)).toString()
+}
+
 function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
   switch (key) {
     case 'symbol':
@@ -486,7 +491,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                             {isClosed ? '—' : formatMoney(group.totalCost, group.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : group.totalQuantity}
+                            {isClosed ? '—' : formatQty(group.totalQuantity, group.category)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
                             {isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}
@@ -658,7 +663,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 <TableCell />
                                 <TableCell />
                                 <TableCell className="text-right font-mono text-sm text-[#22c55e]/70">
-                                  -{qty}
+                                  -{formatQty(qty, record.category)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   {formatMoney(record.costBasis, record.currency)}
@@ -729,7 +734,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {formatMoney(lotCost, record.currency)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {record.quantity}
+                                {formatQty(record.quantity, record.category)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                 {formatMoney(record.costBasis, record.currency)}
