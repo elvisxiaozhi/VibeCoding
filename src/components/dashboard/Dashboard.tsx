@@ -129,8 +129,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     .sort((a, b) => b.pnlRate - a.pnlRate)
     .slice(0, 5)
 
-  // Top 5 年化收益率排行（按 symbol 汇总后的年化）
-  const top5Ann = [...symbolSummaries]
+  // Top 5 年化收益率排行（按 symbol 汇总后的年化，黄金暂时不参与）
+  const top5Ann = symbolSummaries
+    .filter((s) => s.lots[0].market !== 'gold')
     .sort((a, b) => b.annReturn - a.annReturn)
     .slice(0, 5)
 
@@ -209,8 +210,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             const groupDivs = divRecords.filter((d) => (d.market || 'cn') === market)
             const groupConsumed = consumedRecords.filter((d) => (d.market || 'cn') === market)
             const groupSells = sellRecords.filter((d) => (d.market || 'cn') === market)
-            const ann = holdingsXIRR(group, groupDivs, groupConsumed, groupSells)
-            const isAnnPositive = ann >= 0
+            const ann = market === 'gold' ? null : holdingsXIRR(group, groupDivs, groupConsumed, groupSells)
+            const isAnnPositive = (ann ?? 0) >= 0
             const ratio = totalValueCNY === 0 ? 0 : mvCNY / totalValueCNY
 
             return (
@@ -228,9 +229,11 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
                   <span className="text-xs text-muted-foreground">
                     占比 {(ratio * 100).toFixed(1)}%
                   </span>
-                  <span className={`font-mono text-xs ${isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                    年化 {formatPercent(ann)}
-                  </span>
+                  {ann !== null && (
+                    <span className={`font-mono text-xs ${isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+                      年化 {formatPercent(ann)}
+                    </span>
+                  )}
                 </div>
               </div>
             )

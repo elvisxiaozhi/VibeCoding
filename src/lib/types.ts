@@ -11,16 +11,17 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
 
 export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'gold', 'crypto', 'cash', 'currency']
 
-export type MarketType = 'cn' | 'hk' | 'us' | 'crypto'
+export type MarketType = 'cn' | 'hk' | 'us' | 'crypto' | 'gold'
 
 export const MARKET_LABELS: Record<MarketType, string> = {
   cn: '人民币资产',
   hk: '港股资产',
   us: '美股资产',
   crypto: '加密货币资产',
+  gold: '黄金资产',
 }
 
-export const MARKET_ORDER: MarketType[] = ['cn', 'hk', 'us', 'crypto']
+export const MARKET_ORDER: MarketType[] = ['cn', 'hk', 'us', 'crypto', 'gold']
 
 export type CurrencyCode = 'CNY' | 'HKD' | 'USD' | 'BTC' | 'USDC' | 'USDT'
 

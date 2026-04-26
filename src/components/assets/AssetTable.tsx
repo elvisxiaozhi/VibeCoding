@@ -407,12 +407,14 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     {isGroupPositive ? '+' : ''}{formatMoney(groupPnLCNY, 'CNY')}
                   </span>
                 </span>
-                <span className="text-muted-foreground">
-                  年化{' '}
-                  <span className={`font-mono ${isGroupAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                    {formatPercent(groupAnn)}
+                {market !== 'gold' && (
+                  <span className="text-muted-foreground">
+                    年化{' '}
+                    <span className={`font-mono ${isGroupAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+                      {formatPercent(groupAnn)}
+                    </span>
                   </span>
-                </span>
+                )}
               </div>
             </div>
 
@@ -512,9 +514,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                             )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-muted-foreground">
-                            {group.totalDividends > 0
-                              ? formatMoney(group.totalDividends, group.currency)
-                              : '—'
+                            {market === 'gold'
+                              ? '—'
+                              : group.totalDividends > 0
+                                ? formatMoney(group.totalDividends, group.currency)
+                                : '—'
                             }
                           </TableCell>
                           <TableCell className={`text-right font-mono ${isClosed ? (isRealizedPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : pnlColor}`}>
@@ -532,8 +536,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               )
                             }
                           </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed ? 'text-muted-foreground' : annColor}`}>
-                            {isClosed ? '—' : formatPercent(group.annReturn)}
+                          <TableCell className={`text-right font-mono ${isClosed || market === 'gold' ? 'text-muted-foreground' : annColor}`}>
+                            {isClosed || market === 'gold' ? '—' : formatPercent(group.annReturn)}
                           </TableCell>
                           {isLoggedIn && (
                             <TableCell className="text-right">
@@ -752,8 +756,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {lotPositive ? '+' : ''}
                                 {formatMoney(lotPnL, record.currency)}
                               </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                {formatPercent(lotAnn)}
+                              <TableCell className={`text-right font-mono text-sm ${market === 'gold' ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
+                                {market === 'gold' ? '—' : formatPercent(lotAnn)}
                               </TableCell>
                               {isLoggedIn && (
                                 <TableCell className="text-right">
