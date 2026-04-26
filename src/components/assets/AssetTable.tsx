@@ -45,6 +45,7 @@ import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 type SortKey =
   | 'symbol'
   | 'category'
+  | 'totalCost'
   | 'quantity'
   | 'costBasis'
   | 'currentPrice'
@@ -69,6 +70,7 @@ interface SymbolGroup {
   /** 全部记录（用于展开明细，按日期排序） */
   allRecords: Asset[]
   totalQuantity: number
+  totalCost: number
   weightedCostBasis: number
   totalMV: number
   totalDividends: number
@@ -86,6 +88,8 @@ function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
       return group.symbol
     case 'category':
       return group.category
+    case 'totalCost':
+      return group.totalCost
     case 'quantity':
       return group.totalQuantity
     case 'costBasis':
@@ -143,6 +147,7 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
       dividendRecords,
       allRecords,
       totalQuantity: totalQty,
+      totalCost,
       weightedCostBasis: totalQty === 0 ? 0 : totalCost / totalQty,
       totalMV,
       totalDividends: totalDiv,
@@ -162,6 +167,7 @@ interface ColumnDef {
 const COLUMNS: ColumnDef[] = [
   { key: 'symbol', label: '名称/代码', align: 'left' },
   { key: 'category', label: '分类', align: 'left' },
+  { key: 'totalCost', label: '买入金额', align: 'right' },
   { key: 'quantity', label: '数量', align: 'right' },
   { key: 'costBasis', label: '成本价', align: 'right' },
   { key: 'currentPrice', label: '现价', align: 'right' },
@@ -477,6 +483,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                             {CATEGORY_LABELS[group.category as AssetCategory]}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
+                            {isClosed ? '—' : formatMoney(group.totalCost, group.currency)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-white">
                             {isClosed ? '—' : group.totalQuantity}
                           </TableCell>
                           <TableCell className="text-right font-mono text-white">
@@ -572,6 +581,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 <TableCell />
                                 <TableCell />
                                 <TableCell />
+                                <TableCell />
                                 <TableCell className="text-right font-mono text-sm text-amber-500/80">
                                   +{formatMoney(record.dividends, record.currency)}
                                 </TableCell>
@@ -610,6 +620,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   )}
                                 </TableCell>
                                 <TableCell />
+                                <TableCell />
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   0
                                 </TableCell>
@@ -644,6 +655,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                     </span>
                                   )}
                                 </TableCell>
+                                <TableCell />
                                 <TableCell />
                                 <TableCell className="text-right font-mono text-sm text-[#22c55e]/70">
                                   -{qty}
@@ -693,6 +705,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                           }
 
                           // 买入记录
+                          const lotCost = costValue(record)
                           const lotMV = marketValue(record)
                           const lotPnL = pnlValue(record)
                           const lotAnn = annualizedReturn(record)
@@ -712,6 +725,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 )}
                               </TableCell>
                               <TableCell />
+                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                {formatMoney(lotCost, record.currency)}
+                              </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                 {record.quantity}
                               </TableCell>
