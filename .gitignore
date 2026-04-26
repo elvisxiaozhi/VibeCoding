@@ -38,4 +38,13 @@ deploy/seed-real.json
 deploy/us/
 deploy/cn/
 deploy/hk/
+deploy/crypto/
 deploy/data-rules.md
+
+# 生成的 seed 文件（含真实持仓数据，本地运行 gen-seed.py 重新生成）
+deploy/seed-us.json
+deploy/seed-us-cleared.json
+deploy/seed-hk.json
+deploy/seed-crypto.json
+deploy/seed-cn.json
+public/cleared-assets.json
