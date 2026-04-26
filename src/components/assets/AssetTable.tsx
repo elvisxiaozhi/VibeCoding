@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Eye,
   Loader2,
+  Lock,
   Pencil,
   Plus,
   Trash2,
@@ -36,6 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
+import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { annualizedReturn, costValue, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
@@ -128,16 +130,18 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
 
     const openLots = allRecords.filter((a) => a.quantity > 0)
     const sellRecords = allRecords.filter((a) => a.quantity < 0)
-    const dividendRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
+    const dividendRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0 && a.note !== '赎回')
+    const redemptionRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0 && a.note === '赎回')
 
-    // 聚合只算持仓；分红从 dividendRecords 汇总
+    // 聚合只算持仓；分红从 dividendRecords 汇总；赎回单独计入盈亏但不显示在分红列
     const totalQty = openLots.reduce((s, a) => s + a.quantity, 0)
     const totalCost = openLots.reduce((s, a) => s + costValue(a), 0)
     const totalMV = totalMarketValue(openLots)
     const totalDiv = dividendRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
-    const totalPnL = totalPnLValue(openLots) + totalDiv
+    const totalRedemption = redemptionRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
+    const totalPnL = totalPnLValue(openLots) + totalDiv + totalRedemption
     const consumedRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
-    const annReturn = holdingsXIRR(openLots, dividendRecords, consumedRecords, sellRecords)
+    const annReturn = holdingsXIRR(openLots, [...dividendRecords, ...redemptionRecords], consumedRecords, sellRecords)
 
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
@@ -202,6 +206,8 @@ interface AssetTableProps {
 export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
+  const { isReadOnly } = useEditMode()
+  const canEdit = isLoggedIn && !isReadOnly
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -279,6 +285,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   }
 
   function handleFormSubmit(data: AssetFormData) {
+    if (!canEdit) return
     if (editingAsset) {
       updateAsset(editingAsset.id, data)
     } else {
@@ -292,7 +299,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   }
 
   function handleDeleteConfirm() {
-    if (deletingAsset) {
+    if (canEdit && deletingAsset) {
       deleteAsset(deletingAsset.id)
     }
     setDeleteOpen(false)
@@ -319,7 +326,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
             点击下方按钮添加您的第一笔资产
           </p>
         </div>
-        {isLoggedIn && (
+        {canEdit && (
           <>
             <Button onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" />
@@ -347,6 +354,14 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         </div>
       )}
 
+      {/* 只读模式 banner */}
+      {isLoggedIn && isReadOnly && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+          <Lock className="h-4 w-4 shrink-0" />
+          <span>当前为只读模式，前往「设置」启用编辑</span>
+        </div>
+      )}
+
       {/* 持仓 / 已清仓 切换 */}
       <div className="flex gap-1 rounded-lg bg-muted/30 p-1 w-fit">
         {(['holding', 'cleared'] as const).map((mode) => (
@@ -368,7 +383,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
       {viewMode === 'holding' && (
         <>
-          {isLoggedIn && (
+          {canEdit && (
             <div className="flex justify-end">
               <Button onClick={handleAdd}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -433,7 +448,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                         <SortIcon active={sortKey === col.key} dir={sortDir} />
                       </TableHead>
                     ))}
-                    {isLoggedIn && <TableHead className="text-right">操作</TableHead>}
+                    {canEdit && <TableHead className="text-right">操作</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -539,7 +554,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                           <TableCell className={`text-right font-mono ${isClosed || market === 'gold' ? 'text-muted-foreground' : annColor}`}>
                             {isClosed || market === 'gold' ? '—' : formatPercent(group.annReturn)}
                           </TableCell>
-                          {isLoggedIn && (
+                          {canEdit && (
                             <TableCell className="text-right">
                               {!hasMultiple && !isClosed && (
                                 <div className="flex justify-end gap-1">
@@ -577,7 +592,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               <TableRow key={record.id} className="bg-amber-500/5">
                                 <TableCell className="pl-10 text-sm">
                                   <span className="border-l-2 border-amber-500/50 pl-2 text-amber-500/80">
-                                    {record.purchasedAt.slice(0, 10)} 分红
+                                    {record.purchasedAt.slice(0, 10)} {record.note === '赎回' ? '赎回' : '分红'}
                                   </span>
                                   {record.note && (
                                     <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
@@ -596,7 +611,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 </TableCell>
                                 <TableCell />
                                 <TableCell />
-                                {isLoggedIn && (
+                                {canEdit && (
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
                                       <Button
@@ -641,7 +656,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 <TableCell />
                                 <TableCell />
                                 <TableCell />
-                                {isLoggedIn && <TableCell />}
+                                {canEdit && <TableCell />}
                               </TableRow>
                             )
                           }
@@ -687,7 +702,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   —
                                 </TableCell>
-                                {isLoggedIn && (
+                                {canEdit && (
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
                                       <Button
@@ -759,7 +774,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               <TableCell className={`text-right font-mono text-sm ${market === 'gold' ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
                                 {market === 'gold' ? '—' : formatPercent(lotAnn)}
                               </TableCell>
-                              {isLoggedIn && (
+                              {canEdit && (
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-1">
                                     <Button

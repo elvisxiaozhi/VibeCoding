@@ -56,6 +56,12 @@
 ### Phase 10 — 数据完善与 XIRR
 - ✅ **Step 25 — 年化 XIRR 修正 + 备注字段 + 数据完善**（见 `docs/steps/step-25-report.md`）
 
+### Phase 11 — 组合年化精确化
+- ✅ **Step 26 — 历史汇率换算 CNY + 黄金过滤**（见 `docs/steps/step-26-report.md`）
+
+### Phase 12 — 安全与体验
+- ✅ **Step 27 — 设置页只读 / 编辑模式开关**（见 `docs/steps/step-27-report.md`）
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`

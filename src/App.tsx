@@ -6,13 +6,7 @@ import { AssetTable } from '@/components/assets/AssetTable'
 import { Dashboard } from '@/components/dashboard/Dashboard'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NAV_LABELS, type PageKey } from '@/components/layout/Sidebar'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Settings } from '@/components/settings/Settings'
 import { useAuth } from '@/hooks/useAuth'
 import type { OwnerType } from '@/lib/types'
 
@@ -24,18 +18,6 @@ const OWNER_TABS: { key: OwnerFilter; label: string }[] = [
   { key: 'wife', label: '老婆的' },
 ]
 
-function PagePlaceholder({ page }: { page: PageKey }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-white">{NAV_LABELS[page]}</CardTitle>
-        <CardDescription>此页面将在后续 Step 中实现。</CardDescription>
-      </CardHeader>
-      <CardContent />
-    </Card>
-  )
-}
-
 function PageContent({ page, isLoggedIn, ownerFilter }: { page: PageKey; isLoggedIn: boolean; ownerFilter: OwnerFilter }) {
   const owner = ownerFilter === 'all' ? undefined : ownerFilter
   switch (page) {
@@ -44,7 +26,7 @@ function PageContent({ page, isLoggedIn, ownerFilter }: { page: PageKey; isLogge
     case 'assets':
       return <AssetTable isLoggedIn={isLoggedIn} ownerFilter={owner} />
     case 'settings':
-      return <PagePlaceholder page={page} />
+      return <Settings />
   }
 }
 
