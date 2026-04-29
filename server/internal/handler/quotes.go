@@ -186,30 +186,16 @@ func fetchSinaPrices(usSymbols []string, hkSymbols []string) ([]QuoteResult, err
 }
 
 // fetchGoldPrice 获取黄金现货价格（CNY/克）
-// 优先走新浪 Au9999（交易时段），否则用 Yahoo Finance COMEX 期货 + 汇率换算
+// 仅使用新浪 Au9999（上海黄金交易所现货），非交易时段返回错误，前端会保留旧价不刷新
 func fetchGoldPrice() (QuoteResult, error) {
-	// 先尝试新浪财经 Au9999（交易时段返回实时价，非交易时段返回空）
-	if price, err := fetchGoldSina(); err == nil && price > 0 {
-		return QuoteResult{Symbol: "GOLD", Price: price}, nil
-	}
-
-	// 非交易时段 fallback：Binance PAXGUSDT（代币化实物黄金，1 PAXG = 1 troy oz）+ 汇率换算
-	usdPerOz, err := fetchGoldUSDPerOz()
+	price, err := fetchGoldSina()
 	if err != nil {
 		return QuoteResult{Symbol: "GOLD"}, fmt.Errorf("gold price unavailable: %w", err)
 	}
-
-	usdCNY, err := fetchUSDCNYRate()
-	if err != nil {
-		usdCNY = 7.25 // 兜底汇率
+	if price <= 0 {
+		return QuoteResult{Symbol: "GOLD"}, fmt.Errorf("gold market closed")
 	}
-
-	// 1 troy oz = 31.1035 g
-	cnyPerGram := usdPerOz * usdCNY / 31.1035
-	// 保留 2 位小数
-	cnyPerGram = float64(int(cnyPerGram*100+0.5)) / 100
-
-	return QuoteResult{Symbol: "GOLD", Price: cnyPerGram}, nil
+	return QuoteResult{Symbol: "GOLD", Price: price}, nil
 }
 
 // fetchGoldSina 通过新浪财经获取 Au9999 现货价格（CNY/克），非交易时段返回 0
@@ -242,54 +228,6 @@ func fetchGoldSina() (float64, error) {
 		return 0, fmt.Errorf("insufficient fields")
 	}
 	return strconv.ParseFloat(strings.TrimSpace(fields[1]), 64)
-}
-
-// fetchGoldUSDPerOz 通过 Binance PAXGUSDT 获取黄金价格（USD/troy oz）
-// PAXG = Paxos Gold，1 PAXG 对应 1 troy oz 实物黄金
-func fetchGoldUSDPerOz() (float64, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("https://data-api.binance.vision/api/v3/ticker/price?symbol=PAXGUSDT")
-	if err != nil {
-		return 0, fmt.Errorf("binance paxg request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	var parsed struct {
-		Price string `json:"price"`
-	}
-	if err := json.Unmarshal(body, &parsed); err != nil || parsed.Price == "" {
-		return 0, fmt.Errorf("parse paxg price failed")
-	}
-
-	price, err := strconv.ParseFloat(parsed.Price, 64)
-	if err != nil || price <= 0 {
-		return 0, fmt.Errorf("invalid paxg price: %s", parsed.Price)
-	}
-	return price, nil
-}
-
-// fetchUSDCNYRate 从 open.er-api.com 获取 USD/CNY 汇率
-func fetchUSDCNYRate() (float64, error) {
-	client := &http.Client{Timeout: 8 * time.Second}
-	resp, err := client.Get("https://open.er-api.com/v6/latest/USD")
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	var parsed struct {
-		Rates map[string]float64 `json:"rates"`
-	}
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return 0, err
-	}
-	rate, ok := parsed.Rates["CNY"]
-	if !ok || rate <= 0 {
-		return 0, fmt.Errorf("CNY rate not found")
-	}
-	return rate, nil
 }
 
 // fetchCryptoPrices 通过 Binance Vision API 获取加密货币报价
