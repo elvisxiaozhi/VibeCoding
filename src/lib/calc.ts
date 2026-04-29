@@ -61,6 +61,22 @@ export function holdingDays(asset: Asset): number {
   return Math.max(Math.floor(diffMs / (1000 * 60 * 60 * 24)), 1)
 }
 
+/** 任意起止日期之间的天数（不强制最小值，用于已售资产持有期） */
+export function daysBetween(start: string | Date, end: string | Date): number {
+  const s = typeof start === 'string' ? new Date(start) : start
+  const e = typeof end === 'string' ? new Date(end) : end
+  const diffMs = e.getTime() - s.getTime()
+  return Math.max(Math.floor(diffMs / (1000 * 60 * 60 * 24)), 0)
+}
+
+/** 持有天数格式化：< 365 → "X 天"；≥ 365 → "X 年 Y 天"（Y=0 时省略） */
+export function formatHoldingDays(days: number): string {
+  if (days < 365) return `${days} 天`
+  const years = Math.floor(days / 365)
+  const remDays = days - years * 365
+  return remDays === 0 ? `${years} 年` : `${years} 年 ${remDays} 天`
+}
+
 /** 单条资产年化收益率（含分红）= ((1 + 总收益率) ^ (365 / 持有天数)) - 1 */
 export function annualizedReturn(asset: Asset): number {
   const rate = pnlRate(asset)

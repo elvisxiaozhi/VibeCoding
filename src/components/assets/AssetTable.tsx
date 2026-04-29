@@ -39,7 +39,7 @@ import {
 import { useAssets } from '@/hooks/useAssets'
 import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
-import { annualizedReturn, costValue, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { annualizedReturn, costValue, formatHoldingDays, holdingDays, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
@@ -55,6 +55,7 @@ type SortKey =
   | 'dividends'
   | 'pnl'
   | 'annualized'
+  | 'holdingDays'
 type SortDir = 'asc' | 'desc'
 
 /** 按 symbol 合并后的标的组 */
@@ -78,6 +79,10 @@ interface SymbolGroup {
   totalDividends: number
   totalPnL: number
   annReturn: number
+  /** 首次买入日期（仅 openLots，已清仓为空字符串） */
+  firstBuyDate: string
+  /** 持有天数：今天 - firstBuyDate；已清仓为 0 */
+  holdingDays: number
 }
 
 function formatPercent(n: number): string {
@@ -111,6 +116,8 @@ function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
       return group.totalPnL
     case 'annualized':
       return group.annReturn
+    case 'holdingDays':
+      return group.holdingDays
   }
 }
 
@@ -146,6 +153,14 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
 
+    // 首次买入日期：openLots 中最早的 purchasedAt（已清仓视为无）
+    const firstBuyDate = openLots.length > 0
+      ? openLots.reduce((min, a) => (a.purchasedAt < min ? a.purchasedAt : min), openLots[0].purchasedAt)
+      : ''
+    const groupHoldingDays = firstBuyDate
+      ? Math.max(Math.floor((Date.now() - new Date(firstBuyDate).getTime()) / 86400000), 1)
+      : 0
+
     groups.push({
       symbol,
       category: representative.category,
@@ -162,6 +177,8 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
       totalDividends: totalDiv,
       totalPnL,
       annReturn,
+      firstBuyDate,
+      holdingDays: groupHoldingDays,
     })
   }
   return groups
@@ -184,6 +201,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'dividends', label: '分红', align: 'right' },
   { key: 'pnl', label: '盈亏额', align: 'right' },
   { key: 'annualized', label: '年化收益率', align: 'right' },
+  { key: 'holdingDays', label: '持有期', align: 'right' },
 ]
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -554,6 +572,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                           <TableCell className={`text-right font-mono ${isClosed || market === 'gold' ? 'text-muted-foreground' : annColor}`}>
                             {isClosed || market === 'gold' ? '—' : formatPercent(group.annReturn)}
                           </TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                            {isClosed ? '—' : formatHoldingDays(group.holdingDays)}
+                          </TableCell>
                           {canEdit && (
                             <TableCell className="text-right">
                               {!hasMultiple && !isClosed && (
@@ -611,6 +632,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 </TableCell>
                                 <TableCell />
                                 <TableCell />
+                                <TableCell />
                                 {canEdit && (
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
@@ -651,6 +673,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   {formatMoney(record.costBasis, record.currency)}
                                 </TableCell>
+                                <TableCell />
                                 <TableCell />
                                 <TableCell />
                                 <TableCell />
@@ -698,6 +721,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 </TableCell>
                                 <TableCell className={`text-right font-mono text-sm ${isRealizedPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
                                   {isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, record.currency)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                  —
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                   —
@@ -773,6 +799,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               </TableCell>
                               <TableCell className={`text-right font-mono text-sm ${market === 'gold' ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
                                 {market === 'gold' ? '—' : formatPercent(lotAnn)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                {formatHoldingDays(holdingDays(record))}
                               </TableCell>
                               {canEdit && (
                                 <TableCell className="text-right">

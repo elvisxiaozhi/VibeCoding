@@ -9,15 +9,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useClearedAssets } from '@/hooks/useClearedAssets'
+import { daysBetween, formatHoldingDays } from '@/lib/calc'
 import { formatMoney } from '@/lib/currency'
 import { CATEGORY_LABELS } from '@/lib/types'
 
 function holdPeriod(first: string, last: string): string {
   if (!first || !last) return '—'
-  const days = Math.round((new Date(last).getTime() - new Date(first).getTime()) / 86400000)
-  if (days < 30) return `${days}天`
-  if (days < 365) return `${Math.round(days / 30)}个月`
-  return `${(days / 365).toFixed(1)}年`
+  return formatHoldingDays(daysBetween(first, last))
 }
 
 interface Props {
