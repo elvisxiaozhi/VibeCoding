@@ -32,6 +32,12 @@ const FUND_CODE_MAP: Record<string, string> = {
   '富国天惠成长混合(LOF)A': '161005',
   '广发聚源债券(LOF)A': '162715',
   '鹏华丰禄债券': '003547',
+  '东方臻宝债': '006210',
+  '华夏鼎茂债': '004042',
+  '国金惠安债券': '008798',
+  '广发聚源债': '162715',
+  '南方崇元债': '010353',
+  '天弘优选债': '000606',
 }
 
 export type AssetDraft = Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>
@@ -40,9 +46,11 @@ export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
-  // 请求自增 ID，只接受最新一次 fetchAssets 的回包，避免切换 owner 时
-  // 慢的旧请求覆盖新请求，或 auto-refresh 闭包用旧 ownerFilter 重拉。
+  // 请求自增 ID，只接受最新一次 fetchAssets 的回包。
   const fetchSeqRef = useRef(0)
+  // 始终指向"当前渲染的" ownerFilter，闭包过时的调用据此识别。
+  const ownerFilterRef = useRef(ownerFilter)
+  ownerFilterRef.current = ownerFilter
 
   const fetchAssets = useCallback(async () => {
     if (!isLoggedIn) {
@@ -50,6 +58,9 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
       setLoading(false)
       return
     }
+    // 闭包过时（如 auto-refresh 链尾用旧 ownerFilter 重拉）：直接放弃，
+    // 否则旧 owner 的数据会被 setAssets 覆盖到正在显示的新 owner 视图上。
+    if (ownerFilter !== ownerFilterRef.current) return
     const seq = ++fetchSeqRef.current
     try {
       setLoading(true)
@@ -57,6 +68,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
       const res = await fetch(`/api/assets${params}`, { credentials: 'include' })
       const data = (await res.json()) as Asset[]
       if (seq !== fetchSeqRef.current) return
+      if (ownerFilter !== ownerFilterRef.current) return
       setAssets(data)
     } catch (err) {
       if (seq !== fetchSeqRef.current) return
