@@ -39,7 +39,7 @@ import {
 import { useAssets } from '@/hooks/useAssets'
 import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
-import { annualizedReturn, costValue, formatHoldingDays, holdingDays, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { annualizedReturnIfReady, costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingDays, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
@@ -78,7 +78,7 @@ interface SymbolGroup {
   totalMV: number
   totalDividends: number
   totalPnL: number
-  annReturn: number
+  annReturn: number | null
   /** 首次买入日期（仅 openLots，已清仓为空字符串） */
   firstBuyDate: string
   /** 持有天数：今天 - firstBuyDate；已清仓为 0 */
@@ -115,7 +115,7 @@ function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
     case 'pnl':
       return group.totalPnL
     case 'annualized':
-      return group.annReturn
+      return group.annReturn ?? Number.NEGATIVE_INFINITY
     case 'holdingDays':
       return group.holdingDays
   }
@@ -148,7 +148,9 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     const totalRedemption = redemptionRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
     const totalPnL = totalPnLValue(openLots) + totalDiv + totalRedemption
     const consumedRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
-    const annReturn = holdingsXIRR(openLots, [...dividendRecords, ...redemptionRecords], consumedRecords, sellRecords)
+    const annReturn = hasMinimumAnnualizedHistory(openLots, consumedRecords)
+      ? holdingsXIRR(openLots, [...dividendRecords, ...redemptionRecords], consumedRecords, sellRecords)
+      : null
 
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
@@ -419,9 +421,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const allGroupDivs = symbolGroups.flatMap((g) => g.dividendRecords)
         const allGroupConsumed = symbolGroups.flatMap((g) => g.allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')))
         const allGroupSells = symbolGroups.flatMap((g) => g.sellRecords)
-        const groupAnn = holdingsXIRR(allOpenLots, allGroupDivs, allGroupConsumed, allGroupSells)
+        const groupAnn = hasMinimumAnnualizedHistory(allOpenLots, allGroupConsumed)
+          ? holdingsXIRR(allOpenLots, allGroupDivs, allGroupConsumed, allGroupSells)
+          : null
         const isGroupPositive = groupPnLCNY >= 0
-        const isGroupAnnPositive = groupAnn >= 0
+        const isGroupAnnPositive = (groupAnn ?? 0) >= 0
 
         return (
           <div key={market} className="space-y-2">
@@ -440,7 +444,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     {isGroupPositive ? '+' : ''}{formatMoney(groupPnLCNY, 'CNY')}
                   </span>
                 </span>
-                {market !== 'gold' && (
+                {market !== 'gold' && groupAnn !== null && (
                   <span className="text-muted-foreground">
                     年化{' '}
                     <span className={`font-mono ${isGroupAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
@@ -473,7 +477,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                   {symbolGroups.map((group) => {
                     const isClosed = group.openLots.length === 0
                     const isPositive = group.totalPnL >= 0
-                    const isAnnPositive = group.annReturn >= 0
+                    const isAnnPositive = (group.annReturn ?? 0) >= 0
                     const pnlColor = isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
                     const annColor = isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
                     const totalRecords = group.allRecords.length
@@ -569,8 +573,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               )
                             }
                           </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed || market === 'gold' ? 'text-muted-foreground' : annColor}`}>
-                            {isClosed || market === 'gold' ? '—' : formatPercent(group.annReturn)}
+                          <TableCell className={`text-right font-mono ${isClosed || market === 'gold' || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
+                            {isClosed || market === 'gold' || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-muted-foreground">
                             {isClosed ? '—' : formatHoldingDays(group.holdingDays)}
@@ -758,9 +762,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                           const lotCost = costValue(record)
                           const lotMV = marketValue(record)
                           const lotPnL = pnlValue(record)
-                          const lotAnn = annualizedReturn(record)
+                          const lotAnn = annualizedReturnIfReady(record)
                           const lotPositive = lotPnL >= 0
-                          const lotAnnPositive = lotAnn >= 0
+                          const lotAnnPositive = (lotAnn ?? 0) >= 0
 
                           return (
                             <TableRow key={record.id} className="bg-muted/20">
@@ -797,8 +801,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {lotPositive ? '+' : ''}
                                 {formatMoney(lotPnL, record.currency)}
                               </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${market === 'gold' ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                {market === 'gold' ? '—' : formatPercent(lotAnn)}
+                              <TableCell className={`text-right font-mono text-sm ${market === 'gold' || lotAnn === null ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
+                                {market === 'gold' || lotAnn === null ? '—' : formatPercent(lotAnn)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                 {formatHoldingDays(holdingDays(record))}

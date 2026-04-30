@@ -1,6 +1,8 @@
 import type { Asset, AssetCategory } from '@/lib/types'
 import { CATEGORY_ORDER } from '@/lib/types'
 
+export const MIN_ANNUALIZED_HOLDING_DAYS = 90
+
 /** 单条资产市值 = 现价 × 数量 */
 export function marketValue(asset: Asset): number {
   return asset.currentPrice * asset.quantity
@@ -85,6 +87,12 @@ export function annualizedReturn(asset: Asset): number {
   return Math.pow(1 + rate, 365 / days) - 1
 }
 
+/** 单条资产年化收益率；持有不足阈值时不展示 */
+export function annualizedReturnIfReady(asset: Asset, minDays = MIN_ANNUALIZED_HOLDING_DAYS): number | null {
+  if (holdingDays(asset) < minDays) return null
+  return annualizedReturn(asset)
+}
+
 /** 单笔现金流 */
 interface Cashflow {
   amount: number  // 负 = 流出（买入），正 = 流入（卖出/分红/当前市值）
@@ -139,6 +147,45 @@ export function xirrRate(cashflows: Cashflow[], guess = 0.1): number {
 function parseOrigQty(note: string): number {
   const m = note.match(/orig_qty:([\d.]+)/)
   return m ? parseFloat(m[1]) : 0
+}
+
+function validDate(value: string): Date | null {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** XIRR 有效起点：当前持仓买入日 + 可成对识别的已清仓买入日中的最早日期 */
+export function annualizedStartDate(buyLots: Asset[], consumedRecords: Asset[] = []): Date | null {
+  const dates: Date[] = []
+
+  for (const a of buyLots) {
+    if (a.category === 'gold') continue
+    const date = validDate(a.purchasedAt)
+    if (date) dates.push(date)
+  }
+
+  for (const a of consumedRecords) {
+    if (a.category === 'gold') continue
+    if (parseOrigQty(a.note ?? '') <= 0) continue
+    const date = validDate(a.purchasedAt)
+    if (date) dates.push(date)
+  }
+
+  if (dates.length === 0) return null
+  return dates.reduce((min, date) => (date.getTime() < min.getTime() ? date : min), dates[0])
+}
+
+/** 持有期达到阈值后才展示年化，避免短期收益被年化放大 */
+export function hasMinimumAnnualizedHistory(
+  buyLots: Asset[],
+  consumedRecords: Asset[] = [],
+  minDays = MIN_ANNUALIZED_HOLDING_DAYS,
+): boolean {
+  const start = annualizedStartDate(buyLots, consumedRecords)
+  if (!start) return false
+  const diffMs = Date.now() - start.getTime()
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  return days >= minDays
 }
 
 /** (currency, date) → 1 单位 currency 等于多少 CNY 的查询函数 */

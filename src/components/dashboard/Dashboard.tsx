@@ -13,7 +13,7 @@ import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
-import { type CategoryBreakdownItem, costValue, dividendValue, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { type CategoryBreakdownItem, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
@@ -64,7 +64,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
   const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
   // 历史汇率未到位前不计算 XIRR，避免缺率时出现失真数字
-  const annReturn: number | null = histLoading
+  const annReturn: number | null = histLoading || !hasMinimumAnnualizedHistory(holdings, consumedRecords)
     ? null
     : holdingsXIRR(holdings, divRecords, consumedRecords, sellRecords, getHistRate)
   const annVariant = annReturn !== null && annReturn >= 0 ? 'profit' : 'loss'
@@ -94,7 +94,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     totalCost: number
     totalPnL: number
     pnlRate: number
-    annReturn: number
+    annReturn: number | null
   }
 
   const symbolSummaries: SymbolSummary[] = (() => {
@@ -123,7 +123,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         totalCost: cost,
         totalPnL: pnl,
         pnlRate: cost === 0 ? 0 : pnl / cost,
-        annReturn: histLoading ? 0 : holdingsXIRR(lots, symDivRecords, symConsumed, symSells, getHistRate),
+        annReturn: histLoading || !hasMinimumAnnualizedHistory(lots, symConsumed)
+          ? null
+          : holdingsXIRR(lots, symDivRecords, symConsumed, symSells, getHistRate),
       })
     }
     return summaries
@@ -136,8 +138,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   // Top 5 年化收益率排行（按 symbol 汇总后的年化，黄金暂时不参与）
   const top5Ann = symbolSummaries
-    .filter((s) => s.lots[0].market !== 'gold')
-    .sort((a, b) => b.annReturn - a.annReturn)
+    .filter((s) => s.lots[0].market !== 'gold' && s.annReturn !== null)
+    .sort((a, b) => b.annReturn! - a.annReturn!)
     .slice(0, 5)
 
   // 按板块汇总
@@ -215,7 +217,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             const groupDivs = divRecords.filter((d) => (d.market || 'cn') === market)
             const groupConsumed = consumedRecords.filter((d) => (d.market || 'cn') === market)
             const groupSells = sellRecords.filter((d) => (d.market || 'cn') === market)
-            const ann = market === 'gold' || histLoading
+            const ann = market === 'gold' || histLoading || !hasMinimumAnnualizedHistory(group, groupConsumed)
               ? null
               : holdingsXIRR(group, groupDivs, groupConsumed, groupSells, getHistRate)
             const isAnnPositive = (ann ?? 0) >= 0
@@ -302,10 +304,12 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         <h3 className="mb-4 font-semibold text-white">年化收益率排行 Top 5</h3>
         {histLoading ? (
           <p className="text-sm text-muted-foreground">汇率加载中…</p>
+        ) : top5Ann.length === 0 ? (
+          <p className="text-sm text-muted-foreground">暂无持有满 90 天的年化样本</p>
         ) : (
           <div className="grid grid-cols-5 gap-4">
             {top5Ann.map((s) => {
-              const isPositive = s.annReturn >= 0
+              const isPositive = s.annReturn! >= 0
               return (
                 <div
                   key={s.symbol}
@@ -320,7 +324,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
                   <p
                     className={`mt-2 font-mono text-lg font-semibold ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
                   >
-                    {formatPercent(s.annReturn)}
+                    {formatPercent(s.annReturn!)}
                   </p>
                 </div>
               )
