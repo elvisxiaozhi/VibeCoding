@@ -5,6 +5,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKUP_PATH="${VIBECODING_ACTIVE_BACKUP_PATH:-}"
+if [ "${SKIP_REAL_DATA_BACKUP:-0}" != "1" ]; then
+  BACKUP_OUTPUT="$("$SCRIPT_DIR/../scripts/backup-real-data.sh" "before-seed-real")"
+  echo "$BACKUP_OUTPUT"
+  BACKUP_PATH="$(printf '%s\n' "$BACKUP_OUTPUT" | sed -n 's/^备份已创建：//p')"
+fi
 DATA_FILE="$SCRIPT_DIR/seed-real.json"
 API_BASE="http://62.234.19.227"
 
@@ -28,10 +34,17 @@ if echo "$LOGIN_RESP" | grep -q '"error"'; then
 fi
 echo "登录成功"
 
+EXISTING_BEFORE=""
+if [ -n "$BACKUP_PATH" ]; then
+  EXISTING_BEFORE=$(curl -s -b "$COOKIE_FILE" "$API_BASE/api/assets")
+  printf '%s\n' "$EXISTING_BEFORE" > "$BACKUP_PATH/remote-assets-before-seed-real.json"
+  "$SCRIPT_DIR/../scripts/update-backup-checksums.sh" "$BACKUP_PATH"
+fi
+
 # 可选：清空已有资产
 if [ "$1" = "--clear" ]; then
   echo "=== 清空已有资产 ==="
-  EXISTING=$(curl -s -b "$COOKIE_FILE" "$API_BASE/api/assets")
+  EXISTING="${EXISTING_BEFORE:-$(curl -s -b "$COOKIE_FILE" "$API_BASE/api/assets")}"
   IDS=$(echo "$EXISTING" | python3 -c "import sys,json; [print(a['id']) for a in json.load(sys.stdin)]" 2>/dev/null || true)
   COUNT=0
   for ID in $IDS; do

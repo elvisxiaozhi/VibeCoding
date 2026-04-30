@@ -1,16 +1,15 @@
 #!/bin/bash
-# 只重置 market='hk' 的资产：从 deploy/seed-hk.json 导入
-# 用法：bash deploy/seed-hk.sh
+# 重置 market=cn & owner=me 的资产，从 deploy/seed-cn.json 重导
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKUP_PATH="${VIBECODING_ACTIVE_BACKUP_PATH:-}"
 if [ "${SKIP_REAL_DATA_BACKUP:-0}" != "1" ]; then
-  BACKUP_OUTPUT="$("$SCRIPT_DIR/../scripts/backup-real-data.sh" "before-seed-hk")"
+  BACKUP_OUTPUT="$("$SCRIPT_DIR/../scripts/backup-real-data.sh" "before-seed-cn")"
   echo "$BACKUP_OUTPUT"
   BACKUP_PATH="$(printf '%s\n' "$BACKUP_OUTPUT" | sed -n 's/^备份已创建：//p')"
 fi
-DATA_FILE="$SCRIPT_DIR/seed-hk.json"
+DATA_FILE="$SCRIPT_DIR/seed-cn.json"
 API_BASE="http://62.234.19.227"
 
 [ -f "$DATA_FILE" ] || { echo "错误：找不到 $DATA_FILE"; exit 1; }
@@ -26,47 +25,43 @@ fi
 echo "登录成功"
 
 echo ""
-echo "=== 2. 删除现有 market=hk 资产 ==="
+echo "=== 2. 删除现有 market=cn & owner=me 资产 ==="
 EXISTING=$(curl -s -b "$COOKIE_FILE" "$API_BASE/api/assets")
 if [ -n "$BACKUP_PATH" ]; then
-  printf '%s\n' "$EXISTING" > "$BACKUP_PATH/remote-assets-before-seed-hk.json"
+  printf '%s\n' "$EXISTING" > "$BACKUP_PATH/remote-assets-before-seed-cn.json"
   "$SCRIPT_DIR/../scripts/update-backup-checksums.sh" "$BACKUP_PATH"
 fi
-HK_IDS=$(echo "$EXISTING" | python3 -c "
+IDS=$(echo "$EXISTING" | python3 -c "
 import sys, json
 for a in json.load(sys.stdin):
-    if a.get('market') == 'hk':
+    if a.get('market') == 'cn' and a.get('owner','me') == 'me':
         print(a['id'])
 ")
-HK_COUNT=$(echo "$HK_IDS" | grep -c . || true)
-echo "找到 $HK_COUNT 条 market=hk 资产，开始删除..."
-DELETED=0
-for ID in $HK_IDS; do
+COUNT=$(echo "$IDS" | grep -c . || true)
+echo "找到 $COUNT 条，开始删除..."
+for ID in $IDS; do
   curl -s -b "$COOKIE_FILE" -X DELETE "$API_BASE/api/assets/$ID" > /dev/null
-  DELETED=$((DELETED + 1))
 done
-echo "已删除 $DELETED 条"
+echo "已删除 $COUNT 条"
 
 echo ""
-echo "=== 3. 导入新 HK 数据 ==="
+echo "=== 3. 导入 CN 数据 ==="
 TOTAL=$(python3 -c "import json; print(len(json.load(open('$DATA_FILE'))))")
-INDEX=0
-
+FAIL=0
 python3 -c "
 import json
-for asset in json.load(open('$DATA_FILE')):
-    print(json.dumps(asset))
+for a in json.load(open('$DATA_FILE')):
+    print(json.dumps(a, ensure_ascii=False))
 " | while read -r LINE; do
-  INDEX=$((INDEX + 1))
   RESP=$(curl -s -b "$COOKIE_FILE" -X POST "$API_BASE/api/assets" \
     -H "Content-Type: application/json" \
     -d "$LINE")
   if echo "$RESP" | grep -q '"error"'; then
-    SYMBOL=$(echo "$LINE" | python3 -c "import sys,json; print(json.load(sys.stdin)['symbol'])")
-    echo "  [$INDEX/$TOTAL] 失败 $SYMBOL: $RESP"
+    SYMBOL=$(echo "$LINE" | python3 -c "import sys,json; print(json.load(sys.stdin)['symbol'])" 2>/dev/null || echo "?")
+    echo "  失败 $SYMBOL: $RESP"
   fi
 done
 
 rm -f "$COOKIE_FILE"
 echo ""
-echo "=== 完成 ==="
+echo "=== 完成，共导入 $TOTAL 条 ==="

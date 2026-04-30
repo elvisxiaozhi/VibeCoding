@@ -3,6 +3,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKUP_PATH="${VIBECODING_ACTIVE_BACKUP_PATH:-}"
+if [ "${SKIP_REAL_DATA_BACKUP:-0}" != "1" ]; then
+  BACKUP_OUTPUT="$("$SCRIPT_DIR/../scripts/backup-real-data.sh" "before-seed-wife-cn")"
+  echo "$BACKUP_OUTPUT"
+  BACKUP_PATH="$(printf '%s\n' "$BACKUP_OUTPUT" | sed -n 's/^备份已创建：//p')"
+fi
 DATA_FILE="$SCRIPT_DIR/seed-wife-cn.json"
 API_BASE="http://62.234.19.227"
 
@@ -21,6 +27,10 @@ echo "登录成功"
 echo ""
 echo "=== 2. 删除现有 owner=wife 资产 ==="
 EXISTING=$(curl -s -b "$COOKIE_FILE" "$API_BASE/api/assets?owner=wife")
+if [ -n "$BACKUP_PATH" ]; then
+  printf '%s\n' "$EXISTING" > "$BACKUP_PATH/remote-assets-before-seed-wife-cn.json"
+  "$SCRIPT_DIR/../scripts/update-backup-checksums.sh" "$BACKUP_PATH"
+fi
 WIFE_IDS=$(echo "$EXISTING" | python3 -c "
 import sys, json
 assets = json.load(sys.stdin)
