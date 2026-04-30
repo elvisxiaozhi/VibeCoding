@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -19,13 +20,28 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+func databasePath() string {
+	if path := os.Getenv("ASSET_DASHBOARD_DB"); path != "" {
+		return path
+	}
+	if _, err := os.Stat("./data.db"); err == nil {
+		return "./data.db"
+	}
+	if _, err := os.Stat("./server/data.db"); err == nil {
+		return "./server/data.db"
+	}
+	return "./data.db"
+}
+
 func main() {
 	// 1. 打开 SQLite 数据库
-	db, err := sql.Open("sqlite", "./data.db")
+	dbPath := databasePath()
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
 	defer db.Close()
+	log.Printf("using database: %s\n", dbPath)
 
 	// 2. 运行 goose 迁移
 	goose.SetBaseFS(migrations)

@@ -9,12 +9,14 @@ import {
 } from 'lucide-react'
 
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
+import { RiskExposurePanel } from '@/components/dashboard/RiskExposurePanel'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
 import { type CategoryBreakdownItem, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
+import { calculateRiskExposure } from '@/lib/risk'
 import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
 
@@ -150,6 +152,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     })
     .filter(({ assets: g }) => g.length > 0)
 
+  const riskExposure = calculateRiskExposure(holdings, rates, totalValueCNY)
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -249,6 +253,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           })}
         </div>
       )}
+
+      <RiskExposurePanel risk={riskExposure} />
 
       {/* 分类占比饼图 + 涨跌排行 */}
       <div className="grid grid-cols-2 gap-6">

@@ -24,19 +24,23 @@ export function useAuth() {
   }, [])
 
   const login = useCallback(async (username: string, password: string): Promise<string | null> => {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ username, password }),
-    })
-    if (res.ok) {
-      const data = (await res.json()) as User
-      setUser(data)
-      return null
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as User
+        setUser(data)
+        return null
+      }
+      const body = (await res.json().catch(() => null)) as { error?: string } | null
+      return body?.error || '登录失败'
+    } catch {
+      return '无法连接本地后端，请确认 API 服务已启动'
     }
-    const body = (await res.json()) as { error: string }
-    return body.error || '登录失败'
   }, [])
 
   const logout = useCallback(async () => {

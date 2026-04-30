@@ -23,10 +23,15 @@ func setupTestStore(t *testing.T) *Store {
 		user_id       TEXT NOT NULL DEFAULT '',
 		symbol        TEXT    NOT NULL,
 		category      TEXT    NOT NULL,
+		market        TEXT    NOT NULL DEFAULT 'cn',
 		cost_basis    REAL    NOT NULL,
 		current_price REAL    NOT NULL,
 		quantity      REAL    NOT NULL,
 		currency      TEXT    NOT NULL DEFAULT 'CNY',
+		dividends     REAL    NOT NULL DEFAULT 0,
+		owner         TEXT    NOT NULL DEFAULT 'me',
+		note          TEXT    NOT NULL DEFAULT '',
+		purchased_at  TEXT    NOT NULL DEFAULT '',
 		created_at    TEXT    NOT NULL,
 		updated_at    TEXT    NOT NULL
 	)`)
@@ -60,10 +65,12 @@ func sampleAsset() model.Asset {
 		UserID:       testUserID,
 		Symbol:       "AAPL",
 		Category:     model.CategoryStock,
+		Market:       model.MarketUs,
 		CostBasis:    150.0,
 		CurrentPrice: 185.5,
 		Quantity:     10,
 		Currency:     "CNY",
+		Owner:        "me",
 		CreatedAt:    "2026-04-01T00:00:00.000Z",
 		UpdatedAt:    "2026-04-01T00:00:00.000Z",
 	}
