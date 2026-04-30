@@ -9,12 +9,14 @@ import {
 } from 'lucide-react'
 
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
+import { PortfolioSnapshotPanel } from '@/components/dashboard/PortfolioSnapshotPanel'
 import { RiskExposurePanel } from '@/components/dashboard/RiskExposurePanel'
 import { ReturnAttributionPanel } from '@/components/dashboard/ReturnAttributionPanel'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
+import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
 import { calculateReturnAttribution } from '@/lib/attribution'
 import { type CategoryBreakdownItem, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
@@ -47,8 +49,16 @@ function assetCostInCNY(a: Asset, rates: Record<string, number>): number {
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { assets, loading } = useAssets(isLoggedIn, ownerFilter)
-  const { rates } = useExchangeRates()
+  const { rates, loading: ratesLoading } = useExchangeRates()
   const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(assets)
+  const {
+    snapshots,
+    selectedSnapshot,
+    loading: snapshotsLoading,
+    creating: snapshotCreating,
+    createTodaySnapshot,
+    selectSnapshot,
+  } = usePortfolioSnapshots(isLoggedIn, rates, ratesLoading)
 
   // 只统计持仓（qty > 0），排除卖出和分红记录
   const holdings = assets.filter((a) => a.quantity > 0)
@@ -262,6 +272,16 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       <ReturnAttributionPanel
         attribution={returnAttribution}
         historicalRatesLoading={histLoading}
+      />
+
+      <PortfolioSnapshotPanel
+        snapshots={snapshots}
+        selectedSnapshot={selectedSnapshot}
+        loading={snapshotsLoading}
+        creating={snapshotCreating}
+        isLoggedIn={isLoggedIn}
+        onCreateToday={createTodaySnapshot}
+        onSelectSnapshot={selectSnapshot}
       />
 
       {/* 分类占比饼图 + 涨跌排行 */}

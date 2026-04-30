@@ -74,3 +74,30 @@ export interface Asset {
   createdAt: string
   updatedAt: string
 }
+
+export type SnapshotDimension = 'market' | 'currency' | 'owner'
+
+export interface PortfolioSnapshotBreakdown {
+  dimension: SnapshotDimension
+  key: string
+  label: string
+  valueCNY: number
+  costCNY: number
+  pnlCNY: number
+  ratio: number
+}
+
+export interface PortfolioSnapshot {
+  id: string
+  snapshotDate: string
+  totalValueCNY: number
+  totalCostCNY: number
+  totalPnLCNY: number
+  totalDividendCNY: number
+  assetCount: number
+  breakdowns?: PortfolioSnapshotBreakdown[]
+  assets?: Asset[]
+  rates?: Record<string, number>
+  createdAt: string
+  updatedAt: string
+}

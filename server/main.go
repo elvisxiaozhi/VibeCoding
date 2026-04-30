@@ -81,6 +81,9 @@ func main() {
 	fxRatesHandler := &handler.FXRates{Store: s}
 	fxRatesHandler.RegisterRoutes(mux)
 
+	portfolioSnapshotsHandler := &handler.PortfolioSnapshots{Store: s}
+	portfolioSnapshotsHandler.RegisterRoutes(mux)
+
 	// 5. 启动 HTTP server（包裹 CORS 中间件）
 	addr := ":8080"
 	fmt.Printf("server listening on %s\n", addr)
