@@ -10,10 +10,12 @@ import {
 
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { RiskExposurePanel } from '@/components/dashboard/RiskExposurePanel'
+import { ReturnAttributionPanel } from '@/components/dashboard/ReturnAttributionPanel'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
+import { calculateReturnAttribution } from '@/lib/attribution'
 import { type CategoryBreakdownItem, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { calculateRiskExposure } from '@/lib/risk'
@@ -153,6 +155,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     .filter(({ assets: g }) => g.length > 0)
 
   const riskExposure = calculateRiskExposure(holdings, rates, totalValueCNY)
+  const returnAttribution = calculateReturnAttribution(holdings, divRecords, sellRecords, rates, getHistRate)
 
   if (loading) {
     return (
@@ -255,6 +258,11 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       )}
 
       <RiskExposurePanel risk={riskExposure} />
+
+      <ReturnAttributionPanel
+        attribution={returnAttribution}
+        historicalRatesLoading={histLoading}
+      />
 
       {/* 分类占比饼图 + 涨跌排行 */}
       <div className="grid grid-cols-2 gap-6">
