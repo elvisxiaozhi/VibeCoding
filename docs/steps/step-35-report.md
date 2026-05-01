@@ -81,3 +81,36 @@
 - 缓存是 module-level 单例，跨标签页不共享（同一标签页内才生效）
 - 强制刷新页面后所有缓存清空，重新走完整 fetch（这是预期行为）
 - 写操作后其他 owner 视图的缓存被清掉，下次切到该 owner 仍会 fetch 一次（SWR 语义，不显 spinner）
+
+## 后续修复（commit 420c032）
+**症状**：用户上线后反馈"经常被登出去"+"切到资产页一片空白，刷新才能看到"。
+
+**根因**：本 Step 三处 fetcher（`fetchAssets` / `fetchSnapshots` / `fetchStatus`）只
+做了 `await res.json()`，未检查 `res.ok`。当 `/api/assets` 返回 401 时，body 是
+`{"error":"unauthorized"}` —— 这个对象被当成 `Asset[]` 写进**模块级缓存 + state**。
+`AssetTable.tsx` 紧接着调 `assets.filter(...)` 在对象上跑直接抛 TypeError，React 整页空白。
+缓存被污染后切页面持续命中坏数据，只有硬刷新才能清掉模块级 `let`，所以用户感知是
+"被登出 + 必须刷新"。session 实际仍然有效（DB 里仍在）。
+
+**修复**：三个 fetcher 全部加上 `res.ok` + `Array.isArray(data)` 双重守卫，
+错误响应直接 `return`，不再写缓存、不再 `setState`，保留现有有效数据不动：
+
+```typescript
+const res = await fetch(...)
+if (!res.ok) {
+  console.error('fetchXxx HTTP error:', res.status)
+  return
+}
+const data = (await res.json()) as unknown
+if (!Array.isArray(data)) {
+  console.error('fetchXxx returned non-array:', data)
+  return
+}
+// ... cache.set + setState
+```
+
+**教训**：
+1. 模块级缓存放大了原本就存在的"未检查 res.ok"隐患——以前每次 remount 都 fetch 一次，
+   就算偶发 401 也会在下次切页时被新的 200 覆盖；缓存命中后这层"自动恢复"被打破。
+2. SWR 风格缓存写入前应该校验响应形状，否则一次错误响应会污染整个会话。
+3. 用户报"被登出"先怀疑前端渲染异常（空白页 ≠ 真 401），别先怀疑 session 失效。
