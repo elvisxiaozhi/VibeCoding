@@ -71,11 +71,14 @@ export function PriceRefreshCenter({
   ]
 
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card className={failed > 0 || expanded ? undefined : 'bg-card/70'}>
+      <CardContent className={failed > 0 || expanded ? 'p-4' : 'p-3'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-background/50">
+            <div className={cn(
+              'flex shrink-0 items-center justify-center rounded-lg border border-border/50 bg-background/50',
+              failed > 0 || expanded ? 'h-9 w-9' : 'h-8 w-8',
+            )}>
               <RefreshCw className={cn('h-4 w-4 text-muted-foreground', refreshing && 'animate-spin')} />
             </div>
             <div className="min-w-0">
@@ -93,7 +96,9 @@ export function PriceRefreshCenter({
               <p className="mt-1 truncate text-xs text-muted-foreground">
                 {loading
                   ? '加载刷新状态中…'
-                  : `${success} 成功 / ${failed} 失败 / ${skipped} 跳过${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`}
+                  : failed > 0
+                    ? `${success} 成功 / ${failed} 失败 / ${skipped} 跳过${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`
+                    : `${success} 项已同步${skipped > 0 ? ` / ${skipped} 项跳过` : ''}${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`}
               </p>
             </div>
           </div>

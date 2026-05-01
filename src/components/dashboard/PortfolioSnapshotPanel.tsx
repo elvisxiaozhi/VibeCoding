@@ -43,6 +43,7 @@ interface PortfolioSnapshotPanelProps {
   loading: boolean
   creating: boolean
   isLoggedIn: boolean
+  compact?: boolean
   onCreateToday: () => void
   onSelectSnapshot: (snapshotDate: string) => void
 }
@@ -53,6 +54,7 @@ export function PortfolioSnapshotPanel({
   loading,
   creating,
   isLoggedIn,
+  compact = false,
   onCreateToday,
   onSelectSnapshot,
 }: PortfolioSnapshotPanelProps) {
@@ -68,7 +70,7 @@ export function PortfolioSnapshotPanel({
     <Card>
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between gap-4">
-          <CardTitle className="text-white">资产快照与净值曲线</CardTitle>
+          <CardTitle className="text-white">{compact ? '净值曲线' : '资产快照与净值曲线'}</CardTitle>
           <div className="flex items-center gap-2">
             <select
               value={selectedDate}
@@ -173,6 +175,7 @@ export function PortfolioSnapshotPanel({
               </ResponsiveContainer>
             </div>
 
+            {!compact && (
             <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
               <section className="space-y-3">
                 <h3 className="text-sm font-medium text-white">拆分明细</h3>
@@ -247,6 +250,7 @@ export function PortfolioSnapshotPanel({
                 </div>
               </section>
             </div>
+            )}
           </>
         )}
       </CardContent>
