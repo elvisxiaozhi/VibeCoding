@@ -37,6 +37,8 @@ const (
 	priceStatusSkipped = "skipped"
 )
 
+var errNoRefreshSource = errors.New("no refresh source")
+
 var fundCodeMap = map[string]string{
 	"中欧时代先锋股票A":      "001938",
 	"华夏鼎茂债券A":        "004042",
@@ -177,7 +179,10 @@ func (h *PriceRefresh) refreshAssets(userID string, assets []model.Asset) []mode
 
 		price, source, err := fetchAssetPrice(asset)
 		status.Source = source
-		if err != nil {
+		if errors.Is(err, errNoRefreshSource) {
+			status.Status = priceStatusSkipped
+			status.ErrorMessage = "no refresh source"
+		} else if err != nil {
 			status.Status = priceStatusFailed
 			status.ErrorMessage = err.Error()
 		} else if price <= 0 {
@@ -239,7 +244,7 @@ func fetchAssetPrice(asset model.Asset) (float64, string, error) {
 		quotes, err := fetchCryptoPrices([]string{ticker})
 		return quotePrice(ticker, "binance", quotes, err)
 	default:
-		return 0, "none", fmt.Errorf("unsupported refresh source")
+		return 0, "none", errNoRefreshSource
 	}
 }
 

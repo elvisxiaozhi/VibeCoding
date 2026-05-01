@@ -9,6 +9,25 @@ import type { PriceRefreshStatus } from '@/lib/types'
 import { MARKET_LABELS } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
+type DisplayStatus = 'success' | 'failed' | 'skipped' | 'manual'
+
+interface GroupedPriceRefreshStatus extends PriceRefreshStatus {
+  count: number
+  assetIds: string[]
+}
+
+function normalizedStatus(item: PriceRefreshStatus): DisplayStatus {
+  if (item.status === 'failed' && item.errorMessage === 'unsupported refresh source') return 'skipped'
+  return item.status
+}
+
+function normalizedError(item: PriceRefreshStatus): string {
+  if (item.errorMessage === 'unsupported refresh source' || item.errorMessage === 'no refresh source') {
+    return '暂无自动刷新源'
+  }
+  return item.errorMessage || ''
+}
+
 function statusClass(status: string): string {
   if (status === 'success') return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
   if (status === 'failed') return 'border-red-500/50 bg-red-500/10 text-red-300'
@@ -40,6 +59,42 @@ function statusDotClass(status: string): string {
   return 'bg-muted-foreground'
 }
 
+function groupStatuses(statuses: PriceRefreshStatus[]): GroupedPriceRefreshStatus[] {
+  const groups = new Map<string, GroupedPriceRefreshStatus>()
+  for (const item of statuses) {
+    const status = normalizedStatus(item)
+    const errorMessage = normalizedError(item)
+    const key = [
+      item.symbol,
+      item.market,
+      item.category,
+      item.currency,
+      item.owner,
+      item.source,
+      status,
+      errorMessage,
+    ].join('|')
+    const existing = groups.get(key)
+    if (existing) {
+      existing.count += 1
+      existing.quantity += item.quantity
+      existing.assetIds.push(item.assetId)
+      if (item.lastSuccessAt > existing.lastSuccessAt) existing.lastSuccessAt = item.lastSuccessAt
+      if (item.lastAttemptAt > existing.lastAttemptAt) existing.lastAttemptAt = item.lastAttemptAt
+      if (item.updatedAt > existing.updatedAt) existing.updatedAt = item.updatedAt
+      continue
+    }
+    groups.set(key, {
+      ...item,
+      status,
+      errorMessage,
+      count: 1,
+      assetIds: [item.assetId],
+    })
+  }
+  return [...groups.values()]
+}
+
 interface PriceRefreshCenterProps {
   statuses: PriceRefreshStatus[]
   loading: boolean
@@ -56,18 +111,19 @@ export function PriceRefreshCenter({
   onRefreshOne,
 }: PriceRefreshCenterProps) {
   const [expanded, setExpanded] = useState(false)
-  const success = statuses.filter((item) => item.status === 'success').length
-  const failed = statuses.filter((item) => item.status === 'failed').length
-  const skipped = statuses.filter((item) => item.status === 'skipped').length
-  const failedItems = statuses.filter((item) => item.status === 'failed')
-  const latestSuccess = statuses
+  const groupedStatuses = groupStatuses(statuses)
+  const success = groupedStatuses.filter((item) => item.status === 'success').length
+  const failed = groupedStatuses.filter((item) => item.status === 'failed').length
+  const skipped = groupedStatuses.filter((item) => item.status === 'skipped').length
+  const failedItems = groupedStatuses.filter((item) => item.status === 'failed')
+  const latestSuccess = groupedStatuses
     .map((item) => item.lastSuccessAt)
     .filter(Boolean)
     .sort()
     .at(-1)
   const detailRows = [
     ...failedItems,
-    ...statuses.filter((item) => item.status !== 'failed'),
+    ...groupedStatuses.filter((item) => item.status !== 'failed'),
   ]
 
   return (
@@ -90,15 +146,15 @@ export function PriceRefreshCenter({
                     ? 'border-red-500/50 bg-red-500/10 text-red-300'
                     : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
                 )}>
-                  {failed > 0 ? `${failed} 项失败` : '状态正常'}
+                  {failed > 0 ? `${failed} 个标的失败` : '状态正常'}
                 </span>
               </div>
               <p className="mt-1 truncate text-xs text-muted-foreground">
                 {loading
                   ? '加载刷新状态中…'
                   : failed > 0
-                    ? `${success} 成功 / ${failed} 失败 / ${skipped} 跳过${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`
-                    : `${success} 项已同步${skipped > 0 ? ` / ${skipped} 项跳过` : ''}${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`}
+                    ? `${success} 个标的成功 / ${failed} 失败 / ${skipped} 跳过${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`
+                    : `${success} 个标的已同步${skipped > 0 ? ` / ${skipped} 个跳过` : ''}${latestSuccess ? ` · 最近 ${formatTime(latestSuccess)}` : ''}`}
               </p>
             </div>
           </div>
@@ -139,7 +195,7 @@ export function PriceRefreshCenter({
                 className="max-w-full truncate rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs text-red-200"
                 title={`${item.symbol}: ${item.errorMessage || '刷新失败'}`}
               >
-                {item.symbol}：{item.errorMessage || '刷新失败，已保留旧价格'}
+                {item.symbol}{item.count > 1 ? ` × ${item.count}` : ''}：{item.errorMessage || '刷新失败，已保留旧价格'}
               </div>
             ))}
             {failedItems.length > 3 ? (
@@ -158,7 +214,7 @@ export function PriceRefreshCenter({
               </div>
             ) : detailRows.map((item) => (
               <div
-                key={item.assetId}
+                key={`${item.assetId}-${item.status}-${item.errorMessage}`}
                 className="grid grid-cols-[minmax(0,1.4fr)_96px_92px_112px_72px] items-center gap-3 border-b border-border/30 px-3 py-2.5 last:border-b-0 hover:bg-white/5"
               >
                 <div className="min-w-0">
@@ -167,10 +223,15 @@ export function PriceRefreshCenter({
                     <p className="truncate text-sm font-medium text-white" title={item.symbol}>
                       {item.symbol}
                     </p>
+                    {item.count > 1 ? (
+                      <span className="shrink-0 rounded-full border border-border/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        × {item.count}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground" title={item.errorMessage || item.source}>
-                    {item.status === 'failed'
-                      ? item.errorMessage || '刷新失败，已保留旧价格'
+                    {item.status === 'failed' || item.status === 'skipped'
+                      ? item.errorMessage || `${MARKET_LABELS[item.market] ?? item.market} · ${item.source || '—'}`
                       : `${MARKET_LABELS[item.market] ?? item.market} · ${item.source || '—'}`}
                   </p>
                 </div>
@@ -192,7 +253,7 @@ export function PriceRefreshCenter({
                     size="sm"
                     className="h-7 px-2 text-xs"
                     disabled={refreshing}
-                    onClick={() => onRefreshOne(item.assetId)}
+                    onClick={() => onRefreshOne(item.assetIds[0])}
                   >
                     刷新
                   </Button>
