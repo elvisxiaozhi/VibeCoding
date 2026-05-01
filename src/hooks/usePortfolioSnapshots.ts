@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import type { ExchangeRates } from '@/lib/currency'
 import type { PortfolioSnapshot } from '@/lib/types'
@@ -7,33 +7,44 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+// 模块级缓存：切页面 remount 时立即返回缓存 + 后台 revalidate
+let snapshotsCache: PortfolioSnapshot[] | null = null
+let selectedSnapshotCache: PortfolioSnapshot | null = null
+// "打开 Dashboard 时自动建快照" 在整个会话内只跑一次，避免切回 Dashboard 反复建
+let createdTodayThisSession = false
+
 export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates, ratesLoading: boolean) {
-  const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([])
-  const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>(() => snapshotsCache ?? [])
+  const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(() => selectedSnapshotCache)
+  const [loading, setLoading] = useState(() => isLoggedIn && snapshotsCache === null)
   const [creating, setCreating] = useState(false)
-  const createdTodayRef = useRef(false)
 
   const fetchSnapshots = useCallback(async () => {
     if (!isLoggedIn) {
+      snapshotsCache = null
+      selectedSnapshotCache = null
       setSnapshots([])
       setSelectedSnapshot(null)
       return
     }
 
-    setLoading(true)
+    if (snapshotsCache === null) setLoading(true)
     try {
       const res = await fetch('/api/portfolio-snapshots', { credentials: 'include' })
       if (!res.ok) throw new Error(`snapshots request failed: ${res.status}`)
       const data = (await res.json()) as PortfolioSnapshot[]
+      snapshotsCache = data
       setSnapshots(data)
       if (data.length > 0) {
         const latest = data[data.length - 1]
         const detailRes = await fetch(`/api/portfolio-snapshots/${latest.snapshotDate}`, { credentials: 'include' })
         if (detailRes.ok) {
-          setSelectedSnapshot((await detailRes.json()) as PortfolioSnapshot)
+          const detail = (await detailRes.json()) as PortfolioSnapshot
+          selectedSnapshotCache = detail
+          setSelectedSnapshot(detail)
         }
       } else {
+        selectedSnapshotCache = null
         setSelectedSnapshot(null)
       }
     } catch (err) {
@@ -58,7 +69,9 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
       })
       if (!res.ok) throw new Error(`create snapshot failed: ${res.status}`)
       const snapshot = (await res.json()) as PortfolioSnapshot
+      snapshotsCache = null // 列表会变化，强制下次 fetch 重新拉
       await fetchSnapshots()
+      selectedSnapshotCache = snapshot
       setSelectedSnapshot(snapshot)
     } catch (err) {
       console.error('create portfolio snapshot failed:', err)
@@ -73,7 +86,9 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
     try {
       const res = await fetch(`/api/portfolio-snapshots/${snapshotDate}`, { credentials: 'include' })
       if (!res.ok) throw new Error(`snapshot detail request failed: ${res.status}`)
-      setSelectedSnapshot((await res.json()) as PortfolioSnapshot)
+      const detail = (await res.json()) as PortfolioSnapshot
+      selectedSnapshotCache = detail
+      setSelectedSnapshot(detail)
     } catch (err) {
       console.error('fetch portfolio snapshot detail failed:', err)
     } finally {
@@ -86,8 +101,8 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
   }, [fetchSnapshots])
 
   useEffect(() => {
-    if (!isLoggedIn || ratesLoading || createdTodayRef.current) return
-    createdTodayRef.current = true
+    if (!isLoggedIn || ratesLoading || createdTodayThisSession) return
+    createdTodayThisSession = true
     void createTodaySnapshot()
   }, [createTodaySnapshot, isLoggedIn, ratesLoading])
 

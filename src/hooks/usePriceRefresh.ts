@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { PriceRefreshSettings, PriceRefreshStatus } from '@/lib/types'
 
@@ -16,17 +16,22 @@ interface RefreshResponse {
   statuses: PriceRefreshStatus[]
 }
 
+// 模块级缓存：切页面 remount 时立即返回缓存 + 后台 revalidate
+let statusesCache: PriceRefreshStatus[] | null = null
+let settingsCache: PriceRefreshSettings | null = null
+// "打开 Dashboard 时刷新一次价格" 在整个会话内只跑一次，避免每次切回 Dashboard 都触发 /api/price-refresh/all
+let openedRefreshThisSession = false
+
 export function usePriceRefresh(
   isLoggedIn: boolean,
   onPricesChanged?: () => Promise<void> | void,
   options: { autoRun?: boolean } = {},
 ) {
-  const [statuses, setStatuses] = useState<PriceRefreshStatus[]>([])
-  const [settings, setSettingsState] = useState<PriceRefreshSettings>(DEFAULT_SETTINGS)
-  const [settingsLoaded, setSettingsLoaded] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [statuses, setStatuses] = useState<PriceRefreshStatus[]>(() => statusesCache ?? [])
+  const [settings, setSettingsState] = useState<PriceRefreshSettings>(() => settingsCache ?? DEFAULT_SETTINGS)
+  const [settingsLoaded, setSettingsLoaded] = useState(() => settingsCache !== null)
+  const [loading, setLoading] = useState(() => isLoggedIn && statusesCache === null)
   const [refreshing, setRefreshing] = useState(false)
-  const openedRefreshRef = useRef(false)
 
   const summary = useMemo(() => ({
     success: statuses.filter((item) => item.status === 'success').length,
@@ -37,14 +42,17 @@ export function usePriceRefresh(
 
   const fetchStatus = useCallback(async () => {
     if (!isLoggedIn) {
+      statusesCache = null
       setStatuses([])
       return
     }
-    setLoading(true)
+    if (statusesCache === null) setLoading(true)
     try {
       const res = await fetch('/api/price-refresh/status', { credentials: 'include' })
       if (!res.ok) throw new Error(`price refresh status failed: ${res.status}`)
-      setStatuses((await res.json()) as PriceRefreshStatus[])
+      const data = (await res.json()) as PriceRefreshStatus[]
+      statusesCache = data
+      setStatuses(data)
     } catch (err) {
       console.error('fetch price refresh status failed:', err)
     } finally {
@@ -54,13 +62,16 @@ export function usePriceRefresh(
 
   const fetchSettings = useCallback(async () => {
     if (!isLoggedIn) {
+      settingsCache = null
       setSettingsLoaded(false)
       return
     }
     try {
       const res = await fetch('/api/price-refresh/settings', { credentials: 'include' })
       if (!res.ok) throw new Error(`price refresh settings failed: ${res.status}`)
-      setSettingsState((await res.json()) as PriceRefreshSettings)
+      const data = (await res.json()) as PriceRefreshSettings
+      settingsCache = data
+      setSettingsState(data)
     } catch (err) {
       console.error('fetch price refresh settings failed:', err)
     } finally {
@@ -78,6 +89,7 @@ export function usePriceRefresh(
       })
       if (!res.ok) throw new Error(`refresh all failed: ${res.status}`)
       const data = (await res.json()) as RefreshResponse
+      statusesCache = data.statuses
       setStatuses(data.statuses)
       await onPricesChanged?.()
     } catch (err) {
@@ -97,6 +109,7 @@ export function usePriceRefresh(
       })
       if (!res.ok) throw new Error(`refresh asset failed: ${res.status}`)
       const data = (await res.json()) as RefreshResponse
+      statusesCache = data.statuses
       setStatuses(data.statuses)
       await onPricesChanged?.()
     } catch (err) {
@@ -116,7 +129,9 @@ export function usePriceRefresh(
         body: JSON.stringify(next),
       })
       if (!res.ok) throw new Error(`save price refresh settings failed: ${res.status}`)
-      setSettingsState((await res.json()) as PriceRefreshSettings)
+      const data = (await res.json()) as PriceRefreshSettings
+      settingsCache = data
+      setSettingsState(data)
     } catch (err) {
       console.error('save price refresh settings failed:', err)
     }
@@ -130,9 +145,9 @@ export function usePriceRefresh(
   useEffect(() => {
     if (options.autoRun === false) return
     if (!settingsLoaded) return
-    if (!isLoggedIn || openedRefreshRef.current) return
+    if (!isLoggedIn || openedRefreshThisSession) return
     if (!settings.autoRefreshEnabled || !settings.refreshOnDashboardOpen) return
-    openedRefreshRef.current = true
+    openedRefreshThisSession = true
     void refreshAll()
   }, [isLoggedIn, options.autoRun, refreshAll, settings.autoRefreshEnabled, settings.refreshOnDashboardOpen, settingsLoaded])
 

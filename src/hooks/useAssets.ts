@@ -12,9 +12,22 @@ import { MOCK_ASSETS } from '@/data/mock'
 export type AssetDraft = Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>
 export type AssetPatch = Partial<Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>>
 
+// 模块级缓存：按 owner 维度缓存登录态资产，切页面 remount 时立即返回缓存 + 后台 revalidate
+const assetsCache = new Map<string, Asset[]>()
+
+function cacheKey(ownerFilter?: OwnerType): string {
+  return ownerFilter ?? 'all'
+}
+
 export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [loading, setLoading] = useState(true)
+  const [assets, setAssets] = useState<Asset[]>(() => {
+    if (!isLoggedIn) return MOCK_ASSETS
+    return assetsCache.get(cacheKey(ownerFilter)) ?? []
+  })
+  const [loading, setLoading] = useState(() => {
+    if (!isLoggedIn) return false
+    return !assetsCache.has(cacheKey(ownerFilter))
+  })
   // 请求自增 ID，只接受最新一次 fetchAssets 的回包。
   const fetchSeqRef = useRef(0)
   // 始终指向"当前渲染的" ownerFilter，闭包过时的调用据此识别。
@@ -30,14 +43,23 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     // 闭包过时（如 auto-refresh 链尾用旧 ownerFilter 重拉）：直接放弃，
     // 否则旧 owner 的数据会被 setAssets 覆盖到正在显示的新 owner 视图上。
     if (ownerFilter !== ownerFilterRef.current) return
+    const key = cacheKey(ownerFilter)
+    const cached = assetsCache.get(key)
+    // 命中缓存：立即上屏，loading 不显示；否则显示 spinner
+    if (cached) {
+      setAssets(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     const seq = ++fetchSeqRef.current
     try {
-      setLoading(true)
       const params = ownerFilter ? `?owner=${ownerFilter}` : ''
       const res = await fetch(`/api/assets${params}`, { credentials: 'include' })
       const data = (await res.json()) as Asset[]
       if (seq !== fetchSeqRef.current) return
       if (ownerFilter !== ownerFilterRef.current) return
+      assetsCache.set(key, data)
       setAssets(data)
     } catch (err) {
       if (seq !== fetchSeqRef.current) return
@@ -67,6 +89,8 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
           console.error('addAsset failed:', body.error)
           return
         }
+        // 写操作影响所有 owner 视图，清空全部缓存
+        assetsCache.clear()
         await fetchAssets()
       } catch (err) {
         console.error('addAsset failed:', err)
@@ -108,6 +132,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
           console.error('updateAsset failed:', body.error)
           return
         }
+        assetsCache.clear()
         await fetchAssets()
       } catch (err) {
         console.error('updateAsset failed:', err)
@@ -129,6 +154,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
           console.error('deleteAsset failed:', body.error)
           return
         }
+        assetsCache.clear()
         await fetchAssets()
       } catch (err) {
         console.error('deleteAsset failed:', err)
