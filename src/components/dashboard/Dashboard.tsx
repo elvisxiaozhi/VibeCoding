@@ -23,7 +23,7 @@ import { calculateReturnAttribution } from '@/lib/attribution'
 import { costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { calculateRiskExposure } from '@/lib/risk'
-import type { Asset, OwnerType } from '@/lib/types'
+import { isCashLikeCurrencyAsset, type Asset, type OwnerType } from '@/lib/types'
 
 function formatCNY(n: number): string {
   return formatMoney(n, 'CNY')
@@ -115,7 +115,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         totalPnL: pnl,
         totalPnLCNY: toCNY(pnl, lots[0].currency, rates),
         pnlRate: cost === 0 ? 0 : pnl / cost,
-        annReturn: lots[0].market === 'gold' || histLoading || !hasMinimumAnnualizedHistory(lots, symConsumed)
+        annReturn: lots[0].market === 'gold' || isCashLikeCurrencyAsset(lots[0]) || histLoading || !hasMinimumAnnualizedHistory(lots, symConsumed)
           ? null
           : holdingsXIRR(lots, symDivRecords, symConsumed, symSells, getHistRate),
       })

@@ -41,8 +41,7 @@ import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { annualizedReturnIfReady, costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingDays, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
-import type { Asset, AssetCategory, MarketType, OwnerType } from '@/lib/types'
-import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER } from '@/lib/types'
+import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
 
 type SortKey =
   | 'symbol'
@@ -61,7 +60,7 @@ type SortDir = 'asc' | 'desc'
 /** 按 symbol 合并后的标的组 */
 interface SymbolGroup {
   symbol: string
-  category: string
+  category: AssetCategory
   currency: string
   currentPrice: number
   /** 当前持仓 lots (qty > 0) */
@@ -115,8 +114,10 @@ function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
     case 'pnl':
       return group.totalPnL
     case 'annualized':
+      if (isCashLikeCurrencyAsset(group)) return Number.NEGATIVE_INFINITY
       return group.annReturn ?? Number.NEGATIVE_INFINITY
     case 'holdingDays':
+      if (isCashLikeCurrencyAsset(group)) return Number.NEGATIVE_INFINITY
       return group.holdingDays
   }
 }
@@ -148,12 +149,12 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     const totalRedemption = redemptionRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
     const totalPnL = totalPnLValue(openLots) + totalDiv + totalRedemption
     const consumedRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
-    const annReturn = hasMinimumAnnualizedHistory(openLots, consumedRecords)
-      ? holdingsXIRR(openLots, [...dividendRecords, ...redemptionRecords], consumedRecords, sellRecords)
-      : null
-
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
+    const annReturn = hasMinimumAnnualizedHistory(openLots, consumedRecords)
+      && !isCashLikeCurrencyAsset(representative)
+      ? holdingsXIRR(openLots, [...dividendRecords, ...redemptionRecords], consumedRecords, sellRecords)
+      : null
 
     // 首次买入日期：openLots 中最早的 purchasedAt（已清仓视为无）
     const firstBuyDate = openLots.length > 0
@@ -421,8 +422,13 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const allGroupDivs = symbolGroups.flatMap((g) => g.dividendRecords)
         const allGroupConsumed = symbolGroups.flatMap((g) => g.allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')))
         const allGroupSells = symbolGroups.flatMap((g) => g.sellRecords)
-        const groupAnn = hasMinimumAnnualizedHistory(allOpenLots, allGroupConsumed)
-          ? holdingsXIRR(allOpenLots, allGroupDivs, allGroupConsumed, allGroupSells)
+        const annualizedOpenLots = allOpenLots.filter((a) => !isCashLikeCurrencyAsset(a))
+        const annualizedSymbols = new Set(annualizedOpenLots.map((a) => a.symbol))
+        const annualizedDivs = allGroupDivs.filter((a) => annualizedSymbols.has(a.symbol))
+        const annualizedConsumed = allGroupConsumed.filter((a) => annualizedSymbols.has(a.symbol))
+        const annualizedSells = allGroupSells.filter((a) => annualizedSymbols.has(a.symbol))
+        const groupAnn = hasMinimumAnnualizedHistory(annualizedOpenLots, annualizedConsumed)
+          ? holdingsXIRR(annualizedOpenLots, annualizedDivs, annualizedConsumed, annualizedSells)
           : null
         const isGroupPositive = groupPnLCNY >= 0
         const isGroupAnnPositive = (groupAnn ?? 0) >= 0
@@ -483,6 +489,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     const totalRecords = group.allRecords.length
                     const hasMultiple = totalRecords > 1
                     const isExpanded = expanded.has(group.symbol)
+                    const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
 
                     // 已清仓标的：计算已实现盈亏
                     const realizedPnL = isClosed
@@ -573,11 +580,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               )
                             }
                           </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed || market === 'gold' || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
-                            {isClosed || market === 'gold' || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
+                          <TableCell className={`text-right font-mono ${isClosed || market === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
+                            {isClosed || market === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                            {isClosed ? '—' : formatHoldingDays(group.holdingDays)}
+                            {isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays)}
                           </TableCell>
                           {canEdit && (
                             <TableCell className="text-right">
@@ -765,6 +772,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                           const lotAnn = annualizedReturnIfReady(record)
                           const lotPositive = lotPnL >= 0
                           const lotAnnPositive = (lotAnn ?? 0) >= 0
+                          const hideLotAnnualizedAndHolding = isCashLikeCurrencyAsset(record)
 
                           return (
                             <TableRow key={record.id} className="bg-muted/20">
@@ -801,11 +809,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {lotPositive ? '+' : ''}
                                 {formatMoney(lotPnL, record.currency)}
                               </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${market === 'gold' || lotAnn === null ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                {market === 'gold' || lotAnn === null ? '—' : formatPercent(lotAnn)}
+                              <TableCell className={`text-right font-mono text-sm ${market === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
+                                {market === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? '—' : formatPercent(lotAnn)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatHoldingDays(holdingDays(record))}
+                                {hideLotAnnualizedAndHolding ? '—' : formatHoldingDays(holdingDays(record))}
                               </TableCell>
                               {canEdit && (
                                 <TableCell className="text-right">

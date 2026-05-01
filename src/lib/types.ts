@@ -36,6 +36,27 @@ export const CURRENCY_LABELS: Record<CurrencyCode, string> = {
 
 export const CURRENCY_CODES: CurrencyCode[] = ['CNY', 'HKD', 'USD', 'BTC', 'USDC', 'USDT']
 
+const CASH_LIKE_CURRENCY_CODES = new Set(['CNY', 'HKD', 'USD', 'USDC', 'USDT'])
+const STABLECOIN_CODES = new Set(['USDC', 'USDT'])
+const CASH_LIKE_CURRENCY_NAMES = ['人民币', '港币', '美元', '美金']
+
+export function isCashLikeCurrencyAsset(asset: Pick<Asset, 'category' | 'currency' | 'symbol'>): boolean {
+  const currency = asset.currency.trim().toUpperCase()
+  const symbol = asset.symbol.trim().toUpperCase()
+
+  if (asset.category === 'crypto') {
+    return STABLECOIN_CODES.has(currency) || [...STABLECOIN_CODES].some((code) => symbol.includes(code))
+  }
+
+  if (asset.category !== 'currency' && asset.category !== 'cash') return false
+
+  return (
+    CASH_LIKE_CURRENCY_CODES.has(currency) ||
+    [...CASH_LIKE_CURRENCY_CODES].some((code) => symbol.includes(code)) ||
+    CASH_LIKE_CURRENCY_NAMES.some((name) => asset.symbol.includes(name))
+  )
+}
+
 export type OwnerType = 'me' | 'wife'
 
 export const OWNER_LABELS: Record<OwnerType, string> = {
