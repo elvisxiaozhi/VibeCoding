@@ -50,9 +50,11 @@ export function usePriceRefresh(
     try {
       const res = await fetch('/api/price-refresh/status', { credentials: 'include' })
       if (!res.ok) throw new Error(`price refresh status failed: ${res.status}`)
-      const data = (await res.json()) as PriceRefreshStatus[]
-      statusesCache = data
-      setStatuses(data)
+      const data = (await res.json()) as unknown
+      if (!Array.isArray(data)) throw new Error('price refresh status not an array')
+      const list = data as PriceRefreshStatus[]
+      statusesCache = list
+      setStatuses(list)
     } catch (err) {
       console.error('fetch price refresh status failed:', err)
     } finally {

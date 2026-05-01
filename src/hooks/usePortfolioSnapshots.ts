@@ -32,11 +32,13 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
     try {
       const res = await fetch('/api/portfolio-snapshots', { credentials: 'include' })
       if (!res.ok) throw new Error(`snapshots request failed: ${res.status}`)
-      const data = (await res.json()) as PortfolioSnapshot[]
-      snapshotsCache = data
-      setSnapshots(data)
-      if (data.length > 0) {
-        const latest = data[data.length - 1]
+      const data = (await res.json()) as unknown
+      if (!Array.isArray(data)) throw new Error('snapshots response is not an array')
+      const list = data as PortfolioSnapshot[]
+      snapshotsCache = list
+      setSnapshots(list)
+      if (list.length > 0) {
+        const latest = list[list.length - 1]
         const detailRes = await fetch(`/api/portfolio-snapshots/${latest.snapshotDate}`, { credentials: 'include' })
         if (detailRes.ok) {
           const detail = (await detailRes.json()) as PortfolioSnapshot

@@ -56,11 +56,20 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     try {
       const params = ownerFilter ? `?owner=${ownerFilter}` : ''
       const res = await fetch(`/api/assets${params}`, { credentials: 'include' })
-      const data = (await res.json()) as Asset[]
+      if (!res.ok) {
+        // 401 / 5xx 等：不要把错误对象当数组缓存或上屏（否则 .filter 会炸）
+        console.error('fetchAssets HTTP error:', res.status)
+        return
+      }
+      const data = (await res.json()) as unknown
+      if (!Array.isArray(data)) {
+        console.error('fetchAssets returned non-array:', data)
+        return
+      }
       if (seq !== fetchSeqRef.current) return
       if (ownerFilter !== ownerFilterRef.current) return
-      assetsCache.set(key, data)
-      setAssets(data)
+      assetsCache.set(key, data as Asset[])
+      setAssets(data as Asset[])
     } catch (err) {
       if (seq !== fetchSeqRef.current) return
       console.error('fetchAssets failed:', err)
