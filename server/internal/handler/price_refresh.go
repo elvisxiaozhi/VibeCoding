@@ -38,6 +38,8 @@ const (
 )
 
 var errNoRefreshSource = errors.New("no refresh source")
+var errMarketClosed = errors.New("market closed")
+var errQuoteSourceUnavailable = errors.New("quote source unavailable")
 
 var fundCodeMap = map[string]string{
 	"中欧时代先锋股票A":      "001938",
@@ -182,6 +184,12 @@ func (h *PriceRefresh) refreshAssets(userID string, assets []model.Asset) []mode
 		if errors.Is(err, errNoRefreshSource) {
 			status.Status = priceStatusSkipped
 			status.ErrorMessage = "no refresh source"
+		} else if errors.Is(err, errMarketClosed) {
+			status.Status = priceStatusSkipped
+			status.ErrorMessage = "market closed"
+		} else if errors.Is(err, errQuoteSourceUnavailable) {
+			status.Status = priceStatusSkipped
+			status.ErrorMessage = "quote source unavailable"
 		} else if err != nil {
 			status.Status = priceStatusFailed
 			status.ErrorMessage = err.Error()
@@ -227,25 +235,90 @@ func fetchAssetPrice(asset model.Asset) (float64, string, error) {
 	if asset.Category == model.CategoryGold || asset.Market == "gold" {
 		quote, err := fetchGoldPrice()
 		if err != nil {
+			if strings.Contains(err.Error(), "gold market closed") {
+				return 0, "sina-gold", errMarketClosed
+			}
 			return 0, "sina-gold", err
 		}
 		return quote.Price, "sina-gold", nil
 	}
 
-	ticker := strings.ToUpper(strings.TrimSpace(strings.Split(asset.Symbol, " ")[0]))
+	ticker := normalizeTicker(asset.Symbol, asset.Market)
 	switch asset.Market {
 	case "us":
-		quotes, err := fetchSinaPrices([]string{ticker}, nil)
-		return quotePrice(ticker, "sina-us", quotes, err)
+		price, source, err := fetchUSPrice(ticker)
+		return price, source, err
 	case "hk":
 		quotes, err := fetchSinaPrices(nil, []string{ticker})
 		return quotePrice(ticker, "sina-hk", quotes, err)
 	case "crypto":
 		quotes, err := fetchCryptoPrices([]string{ticker})
-		return quotePrice(ticker, "binance", quotes, err)
+		price, source, quoteErr := quotePrice(ticker, "binance", quotes, err)
+		if quoteErr != nil && isUnsupportedSymbolError(quoteErr) {
+			return 0, source, errNoRefreshSource
+		}
+		return price, source, quoteErr
 	default:
 		return 0, "none", errNoRefreshSource
 	}
+}
+
+func isUnsupportedSymbolError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unsupported symbol") ||
+		strings.Contains(message, "invalid symbol") ||
+		strings.Contains(message, "symbol is not valid")
+}
+
+func normalizeTicker(symbol string, market string) string {
+	fields := strings.Fields(strings.ToUpper(strings.TrimSpace(symbol)))
+	if len(fields) == 0 {
+		return ""
+	}
+	if market == "us" && len(fields) >= 2 && len(fields[1]) == 1 {
+		return fields[0] + "-" + fields[1]
+	}
+	return strings.ReplaceAll(fields[0], ".", "-")
+}
+
+func fetchUSPrice(ticker string) (float64, string, error) {
+	sinaTicker := strings.ReplaceAll(ticker, "-", "")
+	quotes, err := fetchSinaPrices([]string{sinaTicker}, nil)
+	price, _, quoteErr := quotePrice(sinaTicker, "sina-us", quotes, err)
+	if quoteErr == nil && price > 0 {
+		return price, "sina-us", nil
+	}
+
+	stooqPrice, stooqErr := fetchStooqUSPrice(ticker)
+	if stooqErr == nil && stooqPrice > 0 {
+		return stooqPrice, "stooq-us", nil
+	}
+	yahooPrice, yahooErr := fetchYahooUSPrice(ticker)
+	if yahooErr == nil && yahooPrice > 0 {
+		return yahooPrice, "yahoo-us", nil
+	}
+	if quoteErr != nil {
+		return 0, "sina-us", quoteErr
+	}
+	if isTemporaryQuoteSourceError(stooqErr) || isTemporaryQuoteSourceError(yahooErr) {
+		return 0, "market-data", errQuoteSourceUnavailable
+	}
+	return 0, "stooq-us", stooqErr
+}
+
+func isTemporaryQuoteSourceError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "timeout") ||
+		strings.Contains(message, "deadline exceeded") ||
+		strings.Contains(message, "returned html") ||
+		strings.Contains(message, "status 429") ||
+		strings.Contains(message, "status 403")
 }
 
 func quotePrice(symbol, source string, quotes []QuoteResult, err error) (float64, string, error) {

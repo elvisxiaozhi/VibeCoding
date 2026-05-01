@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -149,8 +151,8 @@ func fetchSinaPrices(usSymbols []string, hkSymbols []string) ([]QuoteResult, err
 		if eqIdx < 0 {
 			continue
 		}
-		varPart := line[:eqIdx]                           // var hq_str_gb_aapl
-		varPart = strings.TrimPrefix(varPart, "var ")     // hq_str_gb_aapl
+		varPart := line[:eqIdx]                       // var hq_str_gb_aapl
+		varPart = strings.TrimPrefix(varPart, "var ") // hq_str_gb_aapl
 		sinaKey := strings.TrimPrefix(varPart, "hq_str_")
 
 		info, ok := symbolMap[sinaKey]
@@ -198,6 +200,98 @@ func fetchGoldPrice() (QuoteResult, error) {
 	return QuoteResult{Symbol: "GOLD", Price: price}, nil
 }
 
+func fetchYahooUSPrice(symbol string) (float64, error) {
+	client := &http.Client{Timeout: 4 * time.Second}
+	req, err := http.NewRequest("GET", "https://query1.finance.yahoo.com/v8/finance/chart/"+url.PathEscape(symbol)+"?range=1d&interval=1d", nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("yahoo request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("read yahoo body failed: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("yahoo status %d", resp.StatusCode)
+	}
+	if strings.HasPrefix(strings.TrimSpace(string(body)), "<") {
+		return 0, fmt.Errorf("yahoo returned html")
+	}
+
+	var parsed struct {
+		Chart struct {
+			Result []struct {
+				Meta struct {
+					RegularMarketPrice float64 `json:"regularMarketPrice"`
+					PreviousClose      float64 `json:"previousClose"`
+				} `json:"meta"`
+			} `json:"result"`
+			Error any `json:"error"`
+		} `json:"chart"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return 0, fmt.Errorf("parse yahoo failed: %w", err)
+	}
+	if len(parsed.Chart.Result) == 0 {
+		return 0, fmt.Errorf("no data")
+	}
+	price := parsed.Chart.Result[0].Meta.RegularMarketPrice
+	if price <= 0 {
+		price = parsed.Chart.Result[0].Meta.PreviousClose
+	}
+	if price <= 0 {
+		return 0, fmt.Errorf("no data")
+	}
+	return price, nil
+}
+
+func fetchStooqUSPrice(symbol string) (float64, error) {
+	stooqSymbol := strings.ToLower(strings.ReplaceAll(symbol, ".", "-")) + ".us"
+	client := &http.Client{Timeout: 4 * time.Second}
+	req, err := http.NewRequest("GET", "https://stooq.com/q/l/?s="+url.QueryEscape(stooqSymbol)+"&f=sd2t2ohlcv&h&e=csv", nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("stooq request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("stooq status %d", resp.StatusCode)
+	}
+
+	records, err := csv.NewReader(resp.Body).ReadAll()
+	if err != nil {
+		return 0, fmt.Errorf("parse stooq failed: %w", err)
+	}
+	if len(records) < 2 || len(records[1]) < 7 {
+		return 0, fmt.Errorf("no data")
+	}
+	closeValue := strings.TrimSpace(records[1][6])
+	if closeValue == "" || strings.EqualFold(closeValue, "N/D") {
+		return 0, fmt.Errorf("no data")
+	}
+	price, err := strconv.ParseFloat(closeValue, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse stooq price failed: %w", err)
+	}
+	if price <= 0 {
+		return 0, fmt.Errorf("no data")
+	}
+	return price, nil
+}
+
 // fetchGoldSina 通过新浪财经获取 Au9999 现货价格（CNY/克），非交易时段返回 0
 func fetchGoldSina() (float64, error) {
 	client := &http.Client{Timeout: 8 * time.Second}
@@ -231,24 +325,18 @@ func fetchGoldSina() (float64, error) {
 }
 
 // fetchCryptoPrices 通过 Binance Vision API 获取加密货币报价
-// symbol 约定：BTC → BTCUSDT，ETH → ETHUSDT
+// symbol 约定：BTC → BTCUSDT，PYTH → PYTHUSDT，USDT 固定为 1
 func fetchCryptoPrices(symbols []string) ([]QuoteResult, error) {
-	// Binance pair map: crypto symbol → trading pair
-	pairMap := map[string]string{
-		"BTC": "BTCUSDT",
-		"ETH": "ETHUSDT",
-	}
-
 	var results []QuoteResult
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	for _, s := range symbols {
 		sym := strings.ToUpper(s)
-		pair, ok := pairMap[sym]
-		if !ok {
-			results = append(results, QuoteResult{Symbol: sym, Error: "unsupported symbol"})
+		if sym == "USDT" {
+			results = append(results, QuoteResult{Symbol: sym, Price: 1})
 			continue
 		}
+		pair := sym + "USDT"
 
 		url := "https://data-api.binance.vision/api/v3/ticker/price?symbol=" + pair
 		req, err := http.NewRequest("GET", url, nil)
@@ -265,11 +353,15 @@ func fetchCryptoPrices(symbols []string) ([]QuoteResult, error) {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
-		// {"symbol":"BTCUSDT","price":"87000.12"}
 		var parsed struct {
 			Price string `json:"price"`
+			Msg   string `json:"msg"`
 		}
 		if err := json.Unmarshal(body, &parsed); err != nil || parsed.Price == "" {
+			if parsed.Msg != "" {
+				results = append(results, QuoteResult{Symbol: sym, Error: parsed.Msg})
+				continue
+			}
 			results = append(results, QuoteResult{Symbol: sym, Error: "parse failed"})
 			continue
 		}
