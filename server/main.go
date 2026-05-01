@@ -84,6 +84,9 @@ func main() {
 	portfolioSnapshotsHandler := &handler.PortfolioSnapshots{Store: s}
 	portfolioSnapshotsHandler.RegisterRoutes(mux)
 
+	priceRefreshHandler := &handler.PriceRefresh{Store: s}
+	priceRefreshHandler.RegisterRoutes(mux)
+
 	// 5. 启动 HTTP server（包裹 CORS 中间件）
 	addr := ":8080"
 	fmt.Printf("server listening on %s\n", addr)

@@ -26,7 +26,7 @@ function PageContent({ page, isLoggedIn, ownerFilter }: { page: PageKey; isLogge
     case 'assets':
       return <AssetTable isLoggedIn={isLoggedIn} ownerFilter={owner} />
     case 'settings':
-      return <Settings />
+      return <Settings isLoggedIn={isLoggedIn} />
   }
 }
 

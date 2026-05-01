@@ -101,3 +101,30 @@ export interface PortfolioSnapshot {
   createdAt: string
   updatedAt: string
 }
+
+export type PriceRefreshState = 'success' | 'failed' | 'skipped' | 'manual'
+
+export interface PriceRefreshStatus {
+  assetId: string
+  symbol: string
+  market: MarketType
+  category: AssetCategory
+  currency: string
+  currentPrice: number
+  quantity: number
+  owner: OwnerType
+  source: string
+  lastPrice: number
+  lastSuccessAt: string
+  lastAttemptAt: string
+  status: PriceRefreshState
+  errorMessage?: string
+  updatedAt: string
+}
+
+export interface PriceRefreshSettings {
+  autoRefreshEnabled: boolean
+  refreshIntervalMinutes: number
+  refreshOnDashboardOpen: boolean
+  updatedAt: string
+}

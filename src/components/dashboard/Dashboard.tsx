@@ -10,12 +10,14 @@ import {
 
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { PortfolioSnapshotPanel } from '@/components/dashboard/PortfolioSnapshotPanel'
+import { PriceRefreshCenter } from '@/components/dashboard/PriceRefreshCenter'
 import { RiskExposurePanel } from '@/components/dashboard/RiskExposurePanel'
 import { ReturnAttributionPanel } from '@/components/dashboard/ReturnAttributionPanel'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
+import { usePriceRefresh } from '@/hooks/usePriceRefresh'
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
 import { calculateReturnAttribution } from '@/lib/attribution'
 import { type CategoryBreakdownItem, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
@@ -48,9 +50,16 @@ function assetCostInCNY(a: Asset, rates: Record<string, number>): number {
 }
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
-  const { assets, loading } = useAssets(isLoggedIn, ownerFilter)
+  const { assets, loading, refetch } = useAssets(isLoggedIn, ownerFilter)
   const { rates, loading: ratesLoading } = useExchangeRates()
   const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(assets)
+  const {
+    statuses: priceRefreshStatuses,
+    loading: priceRefreshLoading,
+    refreshing: priceRefreshing,
+    refreshAll: refreshAllPrices,
+    refreshOne: refreshOnePrice,
+  } = usePriceRefresh(isLoggedIn, refetch)
   const {
     snapshots,
     selectedSnapshot,
@@ -198,6 +207,14 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           <span>当前为演示模式，登录后管理您的资产</span>
         </div>
       )}
+
+      <PriceRefreshCenter
+        statuses={priceRefreshStatuses}
+        loading={priceRefreshLoading}
+        refreshing={priceRefreshing}
+        onRefreshAll={refreshAllPrices}
+        onRefreshOne={refreshOnePrice}
+      />
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-4 gap-6">
