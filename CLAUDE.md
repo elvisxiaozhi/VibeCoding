@@ -3,6 +3,22 @@
 ## 项目简介
 前后端分离的个人资产汇总看板。权威规范见根目录 `asset-dashboard-spec.md`（v3），每个新会话开始前请先读取。
 
+## 架构速览
+三端共享一个 Go 后端 + SQLite，前端做派生计算：
+
+```
+  iOS App ─┐
+           ├─→ Go HTTP API (server/) ─→ SQLite (server/data.db)
+  Web SPA ─┘    · Bearer token (iOS) / Cookie (Web)
+                · 只做存储 + CRUD，不算派生指标
+
+  Web 派生层 (src/lib/{calc,attribution,risk}.ts)
+  · 市值、盈亏、XIRR、归因、风险敞口都在前端算
+  · 后端字段变 → 前后端 Asset 类型 + calc.ts 三处同步
+```
+
+外部数据源：实时行情（`handler/quotes.go`）、汇率（`handler/fx_rates.go`）、定时刷新（`handler/price_refresh.go`）。已部署至腾讯云 62.234.19.227。
+
 ## 技术栈（严格约束，不得替换）
 - **前端**：Vite + React + TypeScript + Tailwind CSS v3 + Shadcn UI（手动安装，Default 风格 / Slate / CSS Variables）+ lucide-react + Recharts（Step 7 起引入）
 - **后端**：Go 1.22+ + `net/http` 标准库 + SQLite（`modernc.org/sqlite`）+ `database/sql` + goose（Phase 2 起引入）
@@ -62,6 +78,16 @@
 ### Phase 12 — 安全与体验
 - ✅ **Step 27 — 设置页只读 / 编辑模式开关**（见 `docs/steps/step-27-report.md`）
 
+### Phase 13 起 — 持续迭代（Phase 划分待 spec 校对）
+- ✅ **Step 28 — 长期资产管理口径：年化收益率 90 天阈值**（见 `docs/steps/step-28-report.md`）
+- ✅ **Step 29 — 真实数据改动前自动备份机制**（见 `docs/steps/step-29-report.md`）
+- ✅ **Step 30 — 风险暴露面板与本地运行容错**（见 `docs/steps/step-30-report.md`）
+- ✅ **Step 31 — 当前持仓收益归因面板**（见 `docs/steps/step-31-report.md`）
+- ✅ **Step 32 — 资产快照与净值曲线**（见 `docs/steps/step-32-report.md`）
+- ✅ **Step 33 — 价格刷新中心**（见 `docs/steps/step-33-report.md`）
+- ✅ **Step 34 — 总览页信息架构优化**（见 `docs/steps/step-34-report.md`）
+- ✅ **Step 35 — 切页面性能优化：Hook 模块级缓存 + nginx gzip**（见 `docs/steps/step-35-report.md`）
+
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
 - 禁止引入 React Router，页面切换一律用 `useState`
@@ -73,18 +99,59 @@
 - 保持极简：不做 spec 未要求的抽象、封装、可配置项
 - 每个 Step 结束必须可运行，无控制台报错
 
-## 目录约定
-- `src/components/layout/` — 布局组件
-- `src/components/ui/` — Shadcn 组件
-- `src/components/dashboard/`、`src/components/assets/` — 业务组件（Phase 3 创建）
-- `src/hooks/`、`src/lib/`、`src/data/` — 前端数据与逻辑
-- `server/` — Go 后端根目录（Phase 2 起创建）
-- `server/internal/model/` — Go 领域类型
-- `server/internal/store/` — 数据库访问层
-- `server/internal/handler/` — HTTP handlers
-- `server/internal/middleware/` — 中间件
-- `server/migrations/` — SQL 迁移文件
-- `docs/steps/step-N-report.md` — 每个 Step 的执行简报归档
+## 关键陷阱速查
+踩过的坑，每条都有具体反例：
+
+- **加 lucide 图标必改 vendor shim**：在组件里 `import { NewIcon } from 'lucide-react'` 后，`npx tsc -b` 通过、`npm run dev` 正常，但 `vite build` 会挂。必须同步在 `src/vendor/lucide.ts` 加导出。
+- **commit 不带 Co-Authored-By**：用户已声明禁止。message 体格式 `Step N: <中文标题>` + 要点，**不加任何 Co-Authored-By 尾行**。
+- **派生指标只在前端算**：市值、盈亏、XIRR、归因、风险敞口都在 `src/lib/{calc,attribution,risk}.ts`。后端只存 + CRUD，别在 Go 里加派生计算。
+- **Asset 字段变更要改三处**：`server/migrations/` 新增 SQL → `server/internal/model/asset.go` → `src/lib/types.ts`。如果新字段进入派生计算，再加 `src/lib/calc.ts`。
+- **不要 push**：本地 commit 即停，等用户决定何时 push。
+- **本地 SQLite 在 `server/data.db`**：直接动这个文件就是动用户的真实数据。改 schema 一律走迁移，别手动 SQL。
+
+## 目录地图
+**前端 `src/`**
+- `components/layout/` — 布局骨架
+- `components/ui/` — Shadcn 组件（手动安装，勿改 generator）
+- `components/dashboard/` — 看板：`Dashboard.tsx` 总入口，下挂 `PerformancePanel`、`AssetStructurePanel`、`ReturnAttributionPanel`、`RiskExposurePanel`、`PortfolioSnapshotPanel`、`PriceRefreshCenter`、`CategoryPieChart`、`StatCard`
+- `components/assets/` — 资产 CRUD：`AssetTable.tsx`（主表，最大文件）、`AssetForm.tsx`、`ClearedAssetsTable.tsx`
+- `components/auth/LoginDialog.tsx`、`components/settings/Settings.tsx`
+- `hooks/` — 数据层：`useAssets`、`useAuth`、`useExchangeRates`、`useHistoricalRates`、`usePortfolioSnapshots`、`usePriceRefresh`、`useEditMode`、`useClearedAssets`
+- `lib/` — 纯函数：`calc.ts`（市值/盈亏/XIRR）、`attribution.ts`（收益归因）、`risk.ts`（风险敞口）、`currency.ts`、`types.ts`（前端 Asset 类型）、`utils.ts`
+- `vendor/lucide.ts` — **加图标必须同步这里**（tsc 不报错但 vite build 会挂）
+- `data/mock.ts` — 早期 mock 数据，仅 fallback 用
+
+**后端 `server/`**
+- `main.go` — 路由注册、中间件挂载入口
+- `seed.go` — 启动期可选 seed
+- `internal/handler/` — `assets.go`、`auth.go`、`fx_rates.go`、`fund_navs.go`、`portfolio_snapshots.go`、`price_refresh.go`、`quotes.go`
+- `internal/store/` — `store.go`（DB 连接 + assets CRUD）、`user.go`、`portfolio_snapshot.go`、`price_refresh.go`、`store_test.go`
+- `internal/model/` — `asset.go`、`user.go`、`fx_rate.go`、`portfolio_snapshot.go`、`price_refresh.go`
+- `internal/middleware/` — `auth.go`（cookie + bearer）、`cors.go`
+- `migrations/` — SQL 迁移（已到 012）
+
+**iOS `ios/AssetDashboard/`** — SwiftUI，规范见 `asset-dashboard-ios-spec.md`
+
+**其他**
+- `docs/steps/step-N-report.md` — Step 1–35 简报归档
+- `deploy/` — 数据导入器（`parse-ibkr.py`、`parse-alipay.py`）+ 各市场 seed 脚本（cn / hk / us / crypto / wife / misc）+ `nginx.conf`、`asset-dashboard.service`、`setup-server.sh`、`deploy.sh`
+- `scripts/` — `backup-real-data.sh`、`with-backup.sh`、`generate-tlt-report.mjs`、`process-mywife-cny.py`、`process-vbrokers-tlt.mjs`
+
+## 想做 X 看哪里
+
+| 任务 | 改动点 |
+|---|---|
+| 加 / 改 Asset 字段 | `server/migrations/` 新文件 → `model/asset.go` → `handler/assets.go` → `src/lib/types.ts` → `src/lib/calc.ts`（如影响派生）|
+| 加新 lucide 图标 | import 处 + `src/vendor/lucide.ts` 必须同步 |
+| 加新 API endpoint | `handler/` 新 handler → `main.go` 注册路由 → 前端 hook 调用 |
+| 改派生指标（市值 / XIRR / 归因 / 风险）| 只改 `src/lib/{calc,attribution,risk}.ts`，后端不动 |
+| 加新资产板块 / 分类 | `migrations/009_relax_category_check.sql` 模式 + `types.ts` + `Dashboard.tsx` 分组 |
+| 改实时行情 / 汇率刷新 | `handler/quotes.go` 或 `price_refresh.go` + `usePriceRefresh.ts` |
+| 改组合快照逻辑 | `store/portfolio_snapshot.go` + `usePortfolioSnapshots.ts` + `PortfolioSnapshotPanel.tsx` |
+| 加新页面 | **不用 React Router**，在 `App.tsx` 加 `useState` 分支 |
+| 数据导入 / 批量 seed | `deploy/parse-*.py` 产出 JSON → `deploy/seed-*.sh` 写库 |
+| 部署 / 服务器配置 | `deploy/asset-dashboard.service`、`deploy/nginx.conf`、`deploy/setup-server.sh` |
+| 看历史决策 | `docs/steps/step-N-report.md`，Step 编号见「当前进度」|
 
 ## 启动
 ```bash
@@ -111,7 +178,7 @@ go run ./server      # http://localhost:8080/
 
 ### 3. 提交 git
 - `git add` 具体文件，不用 `-A`
-- commit message 格式 `Step N: <中文标题>`，body 列出本次交付要点，带 `Co-Authored-By: Claude` 尾行
+- commit message 格式 `Step N: <中文标题>`，body 列出本次交付要点。**禁止附加 `Co-Authored-By` 尾行**（用户已声明）
 - 只本地提交，**不要自动 push**
 
 ### 4. 更新 memory
