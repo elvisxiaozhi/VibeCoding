@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import {
   ArrowDown,
@@ -56,6 +56,7 @@ type SortKey =
   | 'annualized'
   | 'holdingDays'
 type SortDir = 'asc' | 'desc'
+const DETAIL_PREVIEW_LIMIT = 10
 
 /** 按 symbol 合并后的标的组 */
 interface SymbolGroup {
@@ -236,6 +237,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
   // 展开状态：记录已展开的 symbol
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [showAllDetails, setShowAllDetails] = useState<Set<string>>(new Set())
 
   // 表单弹窗状态
   const [formOpen, setFormOpen] = useState(false)
@@ -279,6 +281,15 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
   function toggleExpand(symbol: string) {
     setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(symbol)) next.delete(symbol)
+      else next.add(symbol)
+      return next
+    })
+  }
+
+  function toggleShowAllDetails(symbol: string) {
+    setShowAllDetails((prev) => {
       const next = new Set(prev)
       if (next.has(symbol)) next.delete(symbol)
       else next.add(symbol)
@@ -418,8 +429,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const allOpenLots = symbolGroups.flatMap((g) => g.openLots)
         const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
-        const groupPnLCNY = groupMVCNY - groupCostCNY
         const allGroupDivs = symbolGroups.flatMap((g) => g.dividendRecords)
+        const groupDivCNY = allGroupDivs.reduce((s, a) => s + toCNY(a.dividends ?? 0, a.currency, rates), 0)
+        const groupPnLCNY = groupMVCNY - groupCostCNY + groupDivCNY
         const allGroupConsumed = symbolGroups.flatMap((g) => g.allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')))
         const allGroupSells = symbolGroups.flatMap((g) => g.sellRecords)
         const annualizedOpenLots = allOpenLots.filter((a) => !isCashLikeCurrencyAsset(a))
@@ -489,6 +501,16 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     const totalRecords = group.allRecords.length
                     const hasMultiple = totalRecords > 1
                     const isExpanded = expanded.has(group.symbol)
+                    const showAllDetailRows = showAllDetails.has(group.symbol)
+                    const detailRecords = [...group.allRecords].sort((a, b) => {
+                      const dateCompare = b.purchasedAt.localeCompare(a.purchasedAt)
+                      return dateCompare !== 0 ? dateCompare : b.id.localeCompare(a.id)
+                    })
+                    const visibleDetailRecords = showAllDetailRows
+                      ? detailRecords
+                      : detailRecords.slice(0, DETAIL_PREVIEW_LIMIT)
+                    const hiddenDetailCount = Math.max(detailRecords.length - visibleDetailRecords.length, 0)
+                    const detailColSpan = canEdit ? COLUMNS.length + 1 : COLUMNS.length
                     const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
 
                     // 已清仓标的：计算已实现盈亏
@@ -498,7 +520,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     const isRealizedPositive = realizedPnL >= 0
 
                     return (
-                      <>
+                      <Fragment key={group.symbol}>
                         {/* 合并行 */}
                         <TableRow
                           key={group.symbol}
@@ -613,7 +635,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                         </TableRow>
 
                         {/* 展开明细 */}
-                        {hasMultiple && isExpanded && group.allRecords.map((record) => {
+                        {hasMultiple && isExpanded && visibleDetailRecords.map((record) => {
                           const isSell = record.quantity < 0
                           const isDividend = record.quantity === 0 && (record.dividends ?? 0) > 0
                           const isConsumed = record.quantity === 0 && (record.dividends ?? 0) === 0
@@ -840,7 +862,26 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                             </TableRow>
                           )
                         })}
-                      </>
+                        {hasMultiple && isExpanded && detailRecords.length > DETAIL_PREVIEW_LIMIT && (
+                          <TableRow className="bg-muted/10">
+                            <TableCell colSpan={detailColSpan} className="py-2 pl-10">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-white"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleShowAllDetails(group.symbol)
+                                }}
+                              >
+                                {showAllDetailRows
+                                  ? `收起到最近 ${DETAIL_PREVIEW_LIMIT} 条`
+                                  : `显示全部 ${detailRecords.length} 条（还有 ${hiddenDetailCount} 条）`}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </TableBody>
