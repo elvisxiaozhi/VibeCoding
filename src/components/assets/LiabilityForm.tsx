@@ -78,10 +78,16 @@ export function LiabilityForm({ open, onOpenChange, liability, onSubmit }: Liabi
       return
     }
     if (form.principal < 0) {
-      setError('负债余额不能小于 0')
+      setError('未偿金额不能小于 0')
       return
     }
-    onSubmit({ ...form, name: form.name.trim(), note: form.note.trim() })
+    onSubmit({
+      ...form,
+      name: form.name.trim(),
+      interestRate: 0,
+      dueDate: '',
+      note: '',
+    })
     onOpenChange(false)
   }
 
@@ -90,7 +96,7 @@ export function LiabilityForm({ open, onOpenChange, liability, onSubmit }: Liabi
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-foreground">{isEdit ? '编辑负债' : '新增负债'}</DialogTitle>
-          <DialogDescription>记录当前负债余额，不追溯还款流水。</DialogDescription>
+          <DialogDescription>记录当前尚未偿还的金额，不追溯还款流水。</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -134,29 +140,13 @@ export function LiabilityForm({ open, onOpenChange, liability, onSubmit }: Liabi
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="liability-principal">当前余额</Label>
+              <Label htmlFor="liability-principal">未偿金额</Label>
               <Input id="liability-principal" type="number" step="any" min="0" value={form.principal || ''} onChange={(e) => setField('principal', parseFloat(e.target.value) || 0)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="liability-currency">币种</Label>
               <Input id="liability-currency" value={form.currency} onChange={(e) => setField('currency', e.target.value.toUpperCase())} />
             </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="liability-rate">年利率</Label>
-              <Input id="liability-rate" type="number" step="any" min="0" value={form.interestRate || ''} onChange={(e) => setField('interestRate', parseFloat(e.target.value) || 0)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="liability-due-date">到期日</Label>
-              <Input id="liability-due-date" type="date" value={form.dueDate} onChange={(e) => setField('dueDate', e.target.value)} />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="liability-note">备注</Label>
-            <Input id="liability-note" value={form.note} onChange={(e) => setField('note', e.target.value)} />
           </div>
 
           {error && <p className="text-xs text-[#ef4444]">{error}</p>}

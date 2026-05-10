@@ -78,28 +78,15 @@ export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps)
                 <div className="truncate font-medium text-white">{liability.name}</div>
                 <div className="mt-1 text-xs text-muted-foreground">{LIABILITY_CATEGORY_LABELS[liability.category]}</div>
               </div>
-              <div className="text-right">
-                <div className="font-mono text-lg text-white">{formatMoney(liability.principal, liability.currency)}</div>
-                {liability.currency !== 'CNY' && (
+            <div className="text-right">
+              <div className="font-mono text-lg text-white">{formatMoney(liability.principal, liability.currency)}</div>
+              {liability.currency !== 'CNY' && (
                   <div className="text-[10px] text-muted-foreground">
                     ≈ {formatMoney(toCNY(liability.principal, liability.currency, rates), 'CNY')}
                   </div>
                 )}
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <div className="text-muted-foreground">年利率</div>
-                <div className="mt-1 font-mono text-white">{liability.interestRate > 0 ? `${liability.interestRate}%` : '—'}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">到期日</div>
-                <div className="mt-1 font-mono text-white">{liability.dueDate || '—'}</div>
-              </div>
-            </div>
-            {liability.note && (
-              <div className="mt-3 text-xs text-muted-foreground">{liability.note}</div>
-            )}
             {canEdit && (
               <div className="mt-4 flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => handleEdit(liability)}>编辑</Button>
@@ -116,17 +103,14 @@ export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps)
             <TableRow>
               <TableHead>名称</TableHead>
               <TableHead>类型</TableHead>
-              <TableHead className="text-right">余额</TableHead>
-              <TableHead className="text-right">年利率</TableHead>
-              <TableHead className="text-right">到期日</TableHead>
-              <TableHead>备注</TableHead>
+              <TableHead className="text-right">未偿金额</TableHead>
               {canEdit && <TableHead className="text-right">操作</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {liabilities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canEdit ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={canEdit ? 4 : 3} className="h-24 text-center text-muted-foreground">
                   暂无负债记录
                 </TableCell>
               </TableRow>
@@ -141,15 +125,6 @@ export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps)
                       ≈ {formatMoney(toCNY(liability.principal, liability.currency, rates), 'CNY')}
                     </div>
                   )}
-                </TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground">
-                  {liability.interestRate > 0 ? `${liability.interestRate}%` : '—'}
-                </TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground">
-                  {liability.dueDate || '—'}
-                </TableCell>
-                <TableCell className="max-w-[240px] truncate text-muted-foreground" title={liability.note}>
-                  {liability.note || '—'}
                 </TableCell>
                 {canEdit && (
                   <TableCell className="text-right">
