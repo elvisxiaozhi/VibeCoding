@@ -4,12 +4,13 @@ package model
 type AssetCategory = string
 
 const (
-	CategoryStock    AssetCategory = "stock"
-	CategoryETF      AssetCategory = "etf"
-	CategoryGold     AssetCategory = "gold"
-	CategoryCrypto   AssetCategory = "crypto"
-	CategoryCash     AssetCategory = "cash"
-	CategoryCurrency AssetCategory = "currency"
+	CategoryStock         AssetCategory = "stock"
+	CategoryETF           AssetCategory = "etf"
+	CategoryGold          AssetCategory = "gold"
+	CategoryCrypto        AssetCategory = "crypto"
+	CategoryCash          AssetCategory = "cash"
+	CategoryCurrency      AssetCategory = "currency"
+	CategoryProvidentFund AssetCategory = "provident_fund"
 )
 
 // MarketType 所属市场/板块

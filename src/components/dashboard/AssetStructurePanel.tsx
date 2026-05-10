@@ -15,6 +15,7 @@ import {
   MARKET_ORDER,
   OWNER_LABELS,
   OWNER_OPTIONS,
+  isCashLikeCurrencyAsset,
 } from '@/lib/types'
 
 type StructureView = 'category' | 'market' | 'currency' | 'owner'
@@ -25,6 +26,14 @@ interface StructureItem {
   value: number
   ratio: number
   color: string
+}
+
+type MarketStructureKey = (typeof MARKET_ORDER)[number] | 'cash' | 'provident_fund'
+
+const MARKET_STRUCTURE_LABELS: Record<MarketStructureKey, string> = {
+  ...MARKET_LABELS,
+  cash: '现金',
+  provident_fund: '公积金',
 }
 
 interface AssetStructurePanelProps {
@@ -52,7 +61,7 @@ function buildItems(
     view === 'category'
       ? CATEGORY_ORDER.map((key) => ({ key, label: CATEGORY_LABELS[key] }))
       : view === 'market'
-        ? MARKET_ORDER.map((key) => ({ key, label: MARKET_LABELS[key] }))
+        ? ([...MARKET_ORDER, 'cash', 'provident_fund'] as MarketStructureKey[]).map((key) => ({ key, label: MARKET_STRUCTURE_LABELS[key] }))
         : view === 'currency'
           ? CURRENCY_CODES.map((key) => ({ key, label: CURRENCY_LABELS[key] }))
           : OWNER_OPTIONS.map((key) => ({ key, label: OWNER_LABELS[key] }))
@@ -65,7 +74,11 @@ function buildItems(
       view === 'category'
         ? asset.category
         : view === 'market'
-          ? asset.market
+          ? asset.category === 'provident_fund'
+            ? 'provident_fund'
+            : isCashLikeCurrencyAsset(asset)
+              ? 'cash'
+              : asset.market
           : view === 'currency'
             ? asset.currency
             : asset.owner
@@ -124,7 +137,7 @@ export function AssetStructurePanel({
           </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="h-[220px]">
+            <div className="h-[190px] sm:h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -143,10 +156,10 @@ export function AssetStructurePanel({
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#1a1a1a',
-                      border: '1px solid #333',
+                      backgroundColor: 'hsl(var(--popover))',
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
-                      color: '#fff',
+                      color: 'hsl(var(--popover-foreground))',
                       fontSize: '12px',
                     }}
                     formatter={(value) => [formatMoney(Number(value), 'CNY'), '市值']}

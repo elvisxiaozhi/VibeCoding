@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { NAV_LABELS, type PageKey } from '@/components/layout/Sidebar'
 import { Settings } from '@/components/settings/Settings'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/hooks/useTheme'
 import type { OwnerType } from '@/lib/types'
 
 type OwnerFilter = OwnerType | 'all'
@@ -34,10 +35,11 @@ function App() {
   const [page, setPage] = useState<PageKey>('overview')
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
   const { user, loading, isLoggedIn, login, logout } = useAuth()
+  useTheme()
 
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a]">
+      <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -54,15 +56,15 @@ function App() {
     >
       {/* Owner filter tabs */}
       {isLoggedIn && (
-        <div className="mb-4 flex w-fit gap-1 rounded-md border border-border/30 bg-background/30 p-1">
+        <div className="mb-4 flex w-full gap-1 overflow-x-auto rounded-md border border-border/30 bg-background/30 p-1 sm:w-fit">
           {OWNER_TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setOwnerFilter(tab.key)}
               className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
                 ownerFilter === tab.key
-                  ? 'bg-white/10 text-white'
-                  : 'text-muted-foreground hover:text-white'
+                  ? 'bg-foreground/10 text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {tab.label}

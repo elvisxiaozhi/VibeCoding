@@ -21,16 +21,16 @@ export function StatCard({
       ? 'text-[#ef4444]'
       : variant === 'loss'
         ? 'text-[#22c55e]'
-        : 'text-white'
+        : 'text-foreground'
 
   return (
     <Card className="bg-card/60">
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{title}</p>
           <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
-        <p className={`mt-2 font-mono text-xl font-semibold ${valueColor}`}>
+        <p className={`mt-2 break-words font-mono text-lg font-semibold sm:text-xl ${valueColor}`}>
           {value}
         </p>
         {subtitle ? (

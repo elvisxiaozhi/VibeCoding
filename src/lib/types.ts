@@ -1,4 +1,4 @@
-export type AssetCategory = 'stock' | 'etf' | 'gold' | 'crypto' | 'cash' | 'currency'
+export type AssetCategory = 'stock' | 'etf' | 'gold' | 'crypto' | 'cash' | 'currency' | 'provident_fund'
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   stock: '股票',
@@ -7,9 +7,10 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   crypto: '加密货币',
   cash: '现金',
   currency: '货币',
+  provident_fund: '公积金',
 }
 
-export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'gold', 'crypto', 'cash', 'currency']
+export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'gold', 'crypto', 'cash', 'currency', 'provident_fund']
 
 export type MarketType = 'cn' | 'hk' | 'us' | 'crypto' | 'gold'
 
@@ -47,6 +48,8 @@ export function isCashLikeCurrencyAsset(asset: Pick<Asset, 'category' | 'currenc
   if (asset.category === 'crypto') {
     return STABLECOIN_CODES.has(currency) || [...STABLECOIN_CODES].some((code) => symbol.includes(code))
   }
+
+  if (asset.category === 'provident_fund') return true
 
   if (asset.category !== 'currency' && asset.category !== 'cash') return false
 
@@ -92,6 +95,31 @@ export interface Asset {
   owner: OwnerType
   note: string
   purchasedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type LiabilityCategory = 'mortgage' | 'credit_card' | 'loan' | 'other'
+
+export const LIABILITY_CATEGORY_LABELS: Record<LiabilityCategory, string> = {
+  mortgage: '房贷',
+  credit_card: '信用卡',
+  loan: '借款',
+  other: '其他',
+}
+
+export const LIABILITY_CATEGORY_ORDER: LiabilityCategory[] = ['mortgage', 'credit_card', 'loan', 'other']
+
+export interface Liability {
+  id: string
+  name: string
+  category: LiabilityCategory
+  principal: number
+  currency: string
+  interestRate: number
+  dueDate: string
+  owner: OwnerType
+  note: string
   createdAt: string
   updatedAt: string
 }

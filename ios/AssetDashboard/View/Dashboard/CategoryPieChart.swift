@@ -62,6 +62,9 @@ struct CategoryPieChart: View {
         case .etf:    return .cyan
         case .crypto: return .orange
         case .cash:   return .green
+        case .currency: return .cyan
+        case .providentFund: return .orange
+        case .gold: return .yellow
         }
     }
 }

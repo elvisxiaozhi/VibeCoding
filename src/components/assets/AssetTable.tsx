@@ -17,6 +17,7 @@ import {
 
 import { AssetForm, type AssetFormData } from '@/components/assets/AssetForm'
 import { ClearedAssetsTable } from '@/components/assets/ClearedAssetsTable'
+import { LiabilityTable } from '@/components/assets/LiabilityTable'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +58,20 @@ type SortKey =
   | 'holdingDays'
 type SortDir = 'asc' | 'desc'
 const DETAIL_PREVIEW_LIMIT = 10
+
+type DisplayGroupKey = MarketType | 'cash' | 'provident_fund'
+
+const DISPLAY_GROUP_LABELS: Record<DisplayGroupKey, string> = {
+  ...MARKET_LABELS,
+  cash: '现金',
+  provident_fund: '公积金',
+}
+
+function assetDisplayGroup(asset: Asset): DisplayGroupKey {
+  if (asset.category === 'provident_fund') return 'provident_fund'
+  if (isCashLikeCurrencyAsset(asset)) return 'cash'
+  return (asset.market || 'cn') as MarketType
+}
 
 /** 按 symbol 合并后的标的组 */
 interface SymbolGroup {
@@ -233,7 +248,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
-  const [viewMode, setViewMode] = useState<'holding' | 'cleared'>('holding')
+  const [viewMode, setViewMode] = useState<'holding' | 'cleared' | 'liabilities'>('holding')
 
   // 展开状态：记录已展开的 symbol
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -249,21 +264,22 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     undefined,
   )
 
-  // 按板块分组，板块内按 symbol 合并，再排序
-  const groupedByMarket = useMemo(() => {
-    const marketMap = new Map<MarketType, Asset[]>()
-    for (const m of MARKET_ORDER) marketMap.set(m, [])
+  // 按展示板块分组：现金和公积金独立展示，其余资产按市场展示。
+  const groupedByDisplay = useMemo(() => {
+    const groupOrder: DisplayGroupKey[] = [...MARKET_ORDER, 'cash', 'provident_fund']
+    const groupMap = new Map<DisplayGroupKey, Asset[]>()
+    for (const key of groupOrder) groupMap.set(key, [])
     for (const a of assets) {
-      const market = (a.market || 'cn') as MarketType
-      const list = marketMap.get(market)
+      const group = assetDisplayGroup(a)
+      const list = groupMap.get(group)
       if (list) list.push(a)
-      else marketMap.set(market, [a])
+      else groupMap.set(group, [a])
     }
 
-    return MARKET_ORDER
-      .filter((m) => (marketMap.get(m)?.length ?? 0) > 0)
-      .map((m) => {
-        const symbolGroups = groupBySymbol(marketMap.get(m)!)
+    return groupOrder
+      .filter((key) => (groupMap.get(key)?.length ?? 0) > 0)
+      .map((key) => {
+        const symbolGroups = groupBySymbol(groupMap.get(key)!)
         symbolGroups.sort((a, b) => {
           const va = getGroupSortValue(a, sortKey)
           const vb = getGroupSortValue(b, sortKey)
@@ -275,7 +291,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
           }
           return sortDir === 'asc' ? cmp : -cmp
         })
-        return { market: m, groups: symbolGroups }
+        return { key, label: DISPLAY_GROUP_LABELS[key], groups: symbolGroups }
       })
   }, [assets, sortKey, sortDir])
 
@@ -394,9 +410,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         </div>
       )}
 
-      {/* 持仓 / 已清仓 切换 */}
+      {/* 持仓 / 已清仓 / 负债 切换 */}
       <div className="flex gap-1 rounded-lg bg-muted/30 p-1 w-fit">
-        {(['holding', 'cleared'] as const).map((mode) => (
+        {(['holding', 'cleared', 'liabilities'] as const).map((mode) => (
           <button
             key={mode}
             onClick={() => setViewMode(mode)}
@@ -406,12 +422,13 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                 : 'text-muted-foreground hover:text-white'
             }`}
           >
-            {mode === 'holding' ? '持仓' : '已清仓'}
+            {mode === 'holding' ? '持仓' : mode === 'cleared' ? '已清仓' : '负债'}
           </button>
         ))}
       </div>
 
       {viewMode === 'cleared' && <ClearedAssetsTable isLoggedIn={isLoggedIn} />}
+      {viewMode === 'liabilities' && <LiabilityTable isLoggedIn={isLoggedIn} ownerFilter={ownerFilter} />}
 
       {viewMode === 'holding' && (
         <>
@@ -425,7 +442,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
           )}
 
           {/* 按板块分组的表格 */}
-          {groupedByMarket.map(({ market, groups: symbolGroups }) => {
+          {groupedByDisplay.map(({ key: groupKey, label: groupLabel, groups: symbolGroups }) => {
         const allOpenLots = symbolGroups.flatMap((g) => g.openLots)
         const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
@@ -446,13 +463,13 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const isGroupAnnPositive = (groupAnn ?? 0) >= 0
 
         return (
-          <div key={market} className="space-y-2">
+          <div key={groupKey} className="space-y-2">
             {/* 板块标题 + 汇总 */}
-            <div className="flex items-baseline justify-between px-1">
+            <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-baseline sm:justify-between">
               <h3 className="text-sm font-semibold text-white">
-                {MARKET_LABELS[market]}
+                {groupLabel}
               </h3>
-              <div className="flex items-baseline gap-4 text-xs">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">
                   市值 <span className="font-mono text-white">{formatMoney(groupMVCNY, 'CNY')}</span>
                 </span>
@@ -462,7 +479,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     {isGroupPositive ? '+' : ''}{formatMoney(groupPnLCNY, 'CNY')}
                   </span>
                 </span>
-                {market !== 'gold' && groupAnn !== null && (
+                {groupKey !== 'gold' && groupAnn !== null && (
                   <span className="text-muted-foreground">
                     年化{' '}
                     <span className={`font-mono ${isGroupAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
@@ -473,8 +490,128 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
               </div>
             </div>
 
+            {/* 移动端卡片 */}
+            <div className="space-y-3 md:hidden">
+              {symbolGroups.map((group) => {
+                const isClosed = group.openLots.length === 0
+                const isPositive = group.totalPnL >= 0
+                const totalRecords = group.allRecords.length
+                const hasMultiple = totalRecords > 1
+                const isExpanded = expanded.has(group.symbol)
+                const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
+                const realizedPnL = isClosed
+                  ? group.sellRecords.reduce((s, r) => s + (r.currentPrice - r.costBasis) * Math.abs(r.quantity), 0)
+                  : 0
+                const isRealizedPositive = realizedPnL >= 0
+                const detailRecords = [...group.allRecords]
+                  .sort((a, b) => {
+                    const dateCompare = b.purchasedAt.localeCompare(a.purchasedAt)
+                    return dateCompare !== 0 ? dateCompare : b.id.localeCompare(a.id)
+                  })
+                  .slice(0, 6)
+
+                return (
+                  <div key={group.symbol} className={`rounded-xl border border-border/50 bg-card p-4 ${isClosed ? 'opacity-70' : ''}`}>
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={hasMultiple ? () => toggleExpand(group.symbol) : undefined}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {hasMultiple && (
+                              isExpanded
+                                ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            <div className="truncate font-medium text-white">{group.symbol}</div>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>{CATEGORY_LABELS[group.category as AssetCategory]}</span>
+                            {isClosed && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">已清仓</span>}
+                            {hasMultiple && <span>{totalRecords} 条记录</span>}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-mono text-lg text-white">
+                            {isClosed ? '—' : formatMoney(group.totalMV, group.currency)}
+                          </div>
+                          {!isClosed && group.currency !== 'CNY' && (
+                            <div className="text-[10px] text-muted-foreground">
+                              ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <div className="text-muted-foreground">数量</div>
+                          <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatQty(group.totalQuantity, group.category)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">成本</div>
+                          <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.totalCost, group.currency)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">盈亏</div>
+                          <div className={`mt-1 font-mono ${isClosed ? (isRealizedPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+                            {isClosed
+                              ? `${isRealizedPositive ? '+' : ''}${formatMoney(realizedPnL, group.currency)}`
+                              : `${isPositive ? '+' : ''}${formatMoney(group.totalPnL, group.currency)}`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">年化/持有</div>
+                          <div className="mt-1 font-mono text-white">
+                            {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null
+                              ? '—'
+                              : `${formatPercent(group.annReturn)} / ${formatHoldingDays(group.holdingDays)}`}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {canEdit && !hasMultiple && !isClosed && (
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(group.openLots[0])}>编辑</Button>
+                        <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => handleDeleteClick(group.openLots[0])}>删除</Button>
+                      </div>
+                    )}
+
+                    {hasMultiple && isExpanded && (
+                      <div className="mt-4 space-y-2 border-t border-border/40 pt-3">
+                        {detailRecords.map((record) => (
+                          <div key={record.id} className="flex items-center justify-between gap-3 text-xs">
+                            <div className="min-w-0 truncate text-muted-foreground">
+                              {record.purchasedAt.slice(0, 10)}{' '}
+                              {record.quantity < 0
+                                ? '卖出'
+                                : record.quantity === 0 && (record.dividends ?? 0) > 0
+                                  ? (record.note === '赎回' ? '赎回' : '分红')
+                                  : record.quantity === 0
+                                    ? '买入（已清仓）'
+                                    : '买入'}
+                            </div>
+                            <div className="shrink-0 font-mono text-white">
+                              {record.quantity < 0
+                                ? `-${formatQty(Math.abs(record.quantity), record.category)}`
+                                : record.quantity === 0 && (record.dividends ?? 0) > 0
+                                  ? `+${formatMoney(record.dividends, record.currency)}`
+                                  : formatQty(record.quantity, record.category)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
             {/* 表格 */}
-            <div className="rounded-xl border border-border/50 bg-card shadow">
+            <div className="hidden rounded-xl border border-border/50 bg-card shadow md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -580,7 +717,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                             )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-muted-foreground">
-                            {market === 'gold'
+                            {groupKey === 'gold'
                               ? '—'
                               : group.totalDividends > 0
                                 ? formatMoney(group.totalDividends, group.currency)
@@ -602,8 +739,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               )
                             }
                           </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed || market === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
-                            {isClosed || market === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
+                          <TableCell className={`text-right font-mono ${isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
+                            {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-muted-foreground">
                             {isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays)}
@@ -831,8 +968,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {lotPositive ? '+' : ''}
                                 {formatMoney(lotPnL, record.currency)}
                               </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${market === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                {market === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? '—' : formatPercent(lotAnn)}
+                              <TableCell className={`text-right font-mono text-sm ${groupKey === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
+                                {groupKey === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? '—' : formatPercent(lotAnn)}
                               </TableCell>
                               <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                 {hideLotAnnualizedAndHolding ? '—' : formatHoldingDays(holdingDays(record))}
@@ -918,7 +1055,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-[#22c55e] text-white hover:bg-[#dc2626]"
+                className="bg-[#22c55e] text-primary-foreground hover:bg-[#dc2626]"
                 onClick={handleDeleteConfirm}
               >
                 删除

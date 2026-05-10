@@ -76,7 +76,7 @@ export function PortfolioSnapshotPanel({
               value={selectedDate}
               disabled={!isLoggedIn || snapshots.length === 0 || loading}
               onChange={(e) => onSelectSnapshot(e.target.value)}
-              className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs text-white"
+              className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs text-foreground"
             >
               {snapshots.map((snapshot) => (
                 <option key={snapshot.snapshotDate} value={snapshot.snapshotDate}>

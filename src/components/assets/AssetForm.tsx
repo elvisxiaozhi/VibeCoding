@@ -139,7 +139,7 @@ export function AssetForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-white">
+          <DialogTitle className="text-foreground">
             {isEdit ? '编辑资产' : '新增资产'}
           </DialogTitle>
           <DialogDescription>
@@ -160,7 +160,7 @@ export function AssetForm({
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {CATEGORY_ORDER.map((cat) => (
-                <option key={cat} value={cat} className="bg-[#1a1a1a]">
+                <option key={cat} value={cat} className="bg-popover text-popover-foreground">
                   {CATEGORY_LABELS[cat]}
                 </option>
               ))}
@@ -177,7 +177,7 @@ export function AssetForm({
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {MARKET_ORDER.map((m) => (
-                <option key={m} value={m} className="bg-[#1a1a1a]">
+                <option key={m} value={m} className="bg-popover text-popover-foreground">
                   {MARKET_LABELS[m]}
                 </option>
               ))}
@@ -195,7 +195,7 @@ export function AssetForm({
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {CURRENCY_CODES.map((code) => (
-                  <option key={code} value={code} className="bg-[#1a1a1a]">
+                  <option key={code} value={code} className="bg-popover text-popover-foreground">
                     {code} {CURRENCY_LABELS[code]}
                   </option>
                 ))}
@@ -214,7 +214,7 @@ export function AssetForm({
           </div>
 
           {/* 成本价/买入汇率 + 现价/当前汇率 */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="costBasis">{isCurrency ? '买入汇率' : '成本价'}</Label>
               <Input
@@ -291,7 +291,7 @@ export function AssetForm({
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {OWNER_OPTIONS.map((o) => (
-                <option key={o} value={o} className="bg-[#1a1a1a]">
+                <option key={o} value={o} className="bg-popover text-popover-foreground">
                   {OWNER_LABELS[o]}
                 </option>
               ))}

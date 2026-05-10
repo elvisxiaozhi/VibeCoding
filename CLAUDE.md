@@ -87,6 +87,7 @@
 - ✅ **Step 33 — 价格刷新中心**（见 `docs/steps/step-33-report.md`）
 - ✅ **Step 34 — 总览页信息架构优化**（见 `docs/steps/step-34-report.md`）
 - ✅ **Step 35 — 切页面性能优化：Hook 模块级缓存 + nginx gzip**（见 `docs/steps/step-35-report.md`）
+- ✅ **Step 36 — 资产结构扩展：公积金、负债、移动端与系统主题**（见 `docs/steps/step-36-report.md`）
 
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能
@@ -133,7 +134,7 @@
 **iOS `ios/AssetDashboard/`** — SwiftUI，规范见 `asset-dashboard-ios-spec.md`
 
 **其他**
-- `docs/steps/step-N-report.md` — Step 1–35 简报归档
+- `docs/steps/step-N-report.md` — Step 1–36 简报归档
 - `deploy/` — 数据导入器（`parse-ibkr.py`、`parse-alipay.py`）+ 各市场 seed 脚本（cn / hk / us / crypto / wife / misc）+ `nginx.conf`、`asset-dashboard.service`、`setup-server.sh`、`deploy.sh`
 - `scripts/` — `backup-real-data.sh`、`with-backup.sh`、`generate-tlt-report.mjs`、`process-mywife-cny.py`、`process-vbrokers-tlt.mjs`
 

@@ -1,14 +1,17 @@
 import Foundation
 
 enum AssetCategory: String, Codable, CaseIterable {
-    case stock, etf, crypto, cash
+    case stock, etf, gold, crypto, cash, currency, providentFund = "provident_fund"
 
     var label: String {
         switch self {
         case .stock:  return "股票"
         case .etf:    return "ETF"
+        case .gold:   return "黄金"
         case .crypto: return "加密货币"
         case .cash:   return "现金"
+        case .currency: return "货币"
+        case .providentFund: return "公积金"
         }
     }
 }

@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react'
+import { useState } from 'react'
 
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
 import { PerformancePanel, type PerformanceSummary } from '@/components/dashboard/PerformancePanel'
@@ -17,6 +18,7 @@ import { StatCard } from '@/components/dashboard/StatCard'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
+import { useLiabilities } from '@/hooks/useLiabilities'
 import { usePriceRefresh } from '@/hooks/usePriceRefresh'
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
 import { calculateReturnAttribution } from '@/lib/attribution'
@@ -50,8 +52,13 @@ function assetCostInCNY(a: Asset, rates: Record<string, number>): number {
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { assets, loading, refetch } = useAssets(isLoggedIn, ownerFilter)
+  const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
+  const [includeProvidentFund, setIncludeProvidentFund] = useState(false)
   const { rates, loading: ratesLoading } = useExchangeRates()
-  const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(assets)
+  const dashboardAssets = includeProvidentFund
+    ? assets
+    : assets.filter((a) => a.category !== 'provident_fund')
+  const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(dashboardAssets)
   const {
     statuses: priceRefreshStatuses,
     loading: priceRefreshLoading,
@@ -69,19 +76,25 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   } = usePortfolioSnapshots(isLoggedIn, rates, ratesLoading)
 
   // 只统计持仓（qty > 0），排除卖出和分红记录
-  const holdings = assets.filter((a) => a.quantity > 0)
+  const holdings = dashboardAssets.filter((a) => a.quantity > 0)
   // 分红记录（qty = 0, dividends > 0）
-  const divRecords = assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
+  const divRecords = dashboardAssets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
   // 已清仓买入记录（qty = 0, div = 0, note 含 orig_qty）
-  const consumedRecords = assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
+  const consumedRecords = dashboardAssets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
   // 卖出记录（qty < 0）
-  const sellRecords = assets.filter((a) => a.quantity < 0)
+  const sellRecords = dashboardAssets.filter((a) => a.quantity < 0)
+  const providentFundValueCNY = assets
+    .filter((a) => a.category === 'provident_fund' && a.quantity > 0)
+    .reduce((s, a) => s + assetMVInCNY(a, rates), 0)
 
   // 汇率换算后的总值（人民币），含分红
   const totalValueCNY = holdings.reduce((s, a) => s + assetMVInCNY(a, rates), 0)
   const totalCostCNY = holdings.reduce((s, a) => s + assetCostInCNY(a, rates), 0)
   const totalDivCNY = divRecords.reduce((s, a) => s + toCNY(dividendValue(a), a.currency, rates), 0)
   const totalPnLCNY = totalValueCNY - totalCostCNY + totalDivCNY
+  const totalLiabilityCNY = liabilities.reduce((s, l) => s + toCNY(l.principal, l.currency, rates), 0)
+  const netWorthCNY = totalValueCNY - totalLiabilityCNY
+  const liabilityRatio = totalValueCNY === 0 ? 0 : totalLiabilityCNY / totalValueCNY
 
   const pnlPercent = totalCostCNY === 0 ? 0 : totalPnLCNY / totalCostCNY
   const pnlVariant = totalPnLCNY >= 0 ? 'profit' : 'loss'
@@ -126,7 +139,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const riskExposure = calculateRiskExposure(holdings, rates, totalValueCNY)
   const returnAttribution = calculateReturnAttribution(holdings, divRecords, sellRecords, rates, getHistRate)
 
-  if (loading) {
+  if (loading || liabilitiesLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -149,7 +162,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
       {/* 游客模式 banner */}
       {!isLoggedIn && (
         <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-400">
@@ -166,12 +179,40 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         onRefreshOne={refreshOnePrice}
       />
 
+      <div className="flex flex-col items-start justify-between gap-2 rounded-xl border border-border/50 bg-card px-3 py-3 sm:flex-row sm:items-center sm:px-4">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-white">
+          <input
+            type="checkbox"
+            checked={includeProvidentFund}
+            onChange={(e) => setIncludeProvidentFund(e.target.checked)}
+            className="h-4 w-4 rounded border-border bg-background accent-[#f97316]"
+          />
+          包含公积金
+        </label>
+        <span className="text-xs text-muted-foreground">
+          当前公积金余额：<span className="font-mono text-white">{formatCNY(providentFundValueCNY)}</span>
+        </span>
+      </div>
+
       {/* 统计卡片 */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <StatCard
           title="总资产"
           value={formatCNY(totalValueCNY)}
           icon={Wallet}
+        />
+        <StatCard
+          title="净资产"
+          value={formatCNY(netWorthCNY)}
+          subtitle={`负债率 ${(liabilityRatio * 100).toFixed(2)}%`}
+          icon={DollarSign}
+          variant={netWorthCNY >= 0 ? 'profit' : 'loss'}
+        />
+        <StatCard
+          title="总负债"
+          value={formatCNY(totalLiabilityCNY)}
+          icon={TrendingDown}
+          variant={totalLiabilityCNY > 0 ? 'loss' : 'default'}
         />
         <StatCard
           title="浮动盈亏"
@@ -193,7 +234,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
         <PortfolioSnapshotPanel
           snapshots={snapshots}
           selectedSnapshot={selectedSnapshot}

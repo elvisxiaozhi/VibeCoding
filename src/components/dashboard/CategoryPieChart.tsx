@@ -11,6 +11,7 @@ const COLORS: Record<string, string> = {
   crypto: '#f59e0b',
   cash: '#22c55e',
   currency: '#06b6d4',
+  provident_fund: '#f97316',
 }
 
 interface CategoryPieChartProps {
@@ -56,10 +57,10 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#1a1a1a',
-                    border: '1px solid #333',
+                    backgroundColor: 'hsl(var(--popover))',
+                    border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
-                    color: '#fff',
+                    color: 'hsl(var(--popover-foreground))',
                     fontSize: '12px',
                   }}
                   formatter={(value) => [formatMoney(Number(value), 'CNY'), '市值']}

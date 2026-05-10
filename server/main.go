@@ -72,6 +72,9 @@ func main() {
 	assetsHandler := &handler.Assets{Store: s}
 	assetsHandler.RegisterRoutes(mux)
 
+	liabilitiesHandler := &handler.Liabilities{Store: s}
+	liabilitiesHandler.RegisterRoutes(mux)
+
 	quotesHandler := &handler.Quotes{}
 	quotesHandler.RegisterRoutes(mux)
 

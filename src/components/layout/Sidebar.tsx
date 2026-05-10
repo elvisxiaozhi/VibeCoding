@@ -29,14 +29,14 @@ export function Sidebar({ active, onChange, collapsed, onToggle }: SidebarProps)
       {/* 移动端遮罩 */}
       {!collapsed && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={onToggle}
         />
       )}
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[220px] shrink-0 flex-col border-r border-border/30 bg-[#0b0b0c] transition-transform duration-200 lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-[220px] shrink-0 flex-col border-r border-border/30 bg-card transition-transform duration-200 lg:static lg:translate-x-0',
           collapsed ? '-translate-x-full' : 'translate-x-0',
         )}
       >
@@ -46,13 +46,13 @@ export function Sidebar({ active, onChange, collapsed, onToggle }: SidebarProps)
               <LineChart className="h-4 w-4" />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold text-white">资产看板</div>
+              <div className="text-sm font-semibold text-foreground">资产看板</div>
             </div>
           </div>
           <button
             type="button"
             onClick={onToggle}
-            className="rounded-md p-1 text-muted-foreground hover:text-white lg:hidden"
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground lg:hidden"
           >
             <X className="h-5 w-5" />
           </button>
@@ -77,7 +77,7 @@ export function Sidebar({ active, onChange, collapsed, onToggle }: SidebarProps)
                   'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-white/5 hover:text-white',
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                 )}
               >
                 <Icon className="h-4 w-4" />
