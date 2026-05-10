@@ -54,14 +54,14 @@ function App() {
     >
       {/* Owner filter tabs */}
       {isLoggedIn && (
-        <div className="mb-6 flex gap-1 rounded-lg bg-muted/30 p-1">
+        <div className="mb-4 flex w-fit gap-1 rounded-md border border-border/30 bg-background/30 p-1">
           {OWNER_TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setOwnerFilter(tab.key)}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
                 ownerFilter === tab.key
-                  ? 'bg-white/10 text-white shadow-sm'
+                  ? 'bg-white/10 text-white'
                   : 'text-muted-foreground hover:text-white'
               }`}
             >

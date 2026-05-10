@@ -19,7 +19,7 @@ export function AppLayout({ active, onChange, title, children, user, onLogin, on
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
 
   return (
-    <div className="flex h-screen w-full bg-[#0a0a0a] text-white">
+    <div className="flex h-screen w-full bg-[#090909] text-white">
       <Sidebar
         active={active}
         onChange={onChange}
@@ -34,7 +34,7 @@ export function AppLayout({ active, onChange, title, children, user, onLogin, on
           onLogin={onLogin}
           onLogout={onLogout}
         />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto px-5 py-4 lg:px-6 lg:py-5">{children}</main>
       </div>
     </div>
   )

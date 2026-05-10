@@ -101,7 +101,7 @@ export function AssetStructurePanel({
       <CardHeader className="pb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="text-white">资产结构</CardTitle>
-          <div className="flex gap-1 rounded-lg border border-border/50 bg-background/40 p-1">
+          <div className="flex gap-1 rounded-md border border-border/40 bg-background/30 p-1">
             {VIEWS.map((item) => (
               <Button
                 key={item.key}
@@ -165,7 +165,7 @@ export function AssetStructurePanel({
                     </div>
                     <span className="font-mono text-muted-foreground">{(item.ratio * 100).toFixed(1)}%</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${Math.min(item.ratio * 100, 100)}%`, backgroundColor: item.color }}

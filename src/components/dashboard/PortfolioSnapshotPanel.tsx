@@ -98,7 +98,7 @@ export function PortfolioSnapshotPanel({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className={compact ? 'space-y-4' : 'space-y-5'}>
         {!isLoggedIn ? (
           <div className="flex h-40 items-center justify-center rounded-lg border border-border/40 bg-background/40 text-sm text-muted-foreground">
             登录后记录和查看资产快照
@@ -109,6 +109,7 @@ export function PortfolioSnapshotPanel({
           </div>
         ) : (
           <>
+            {!compact && (
             <div className="grid gap-4 md:grid-cols-4">
               <div className="rounded-lg border border-border/40 bg-background/40 p-4">
                 <p className="text-xs text-muted-foreground">快照日期</p>
@@ -137,8 +138,9 @@ export function PortfolioSnapshotPanel({
                 </p>
               </div>
             </div>
+            )}
 
-            <div className="h-[280px] rounded-lg border border-border/40 bg-background/40 p-4">
+            <div className={cn('rounded-lg border border-border/30 bg-background/30 p-3', compact ? 'h-[260px]' : 'h-[280px] p-4')}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
                   <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />

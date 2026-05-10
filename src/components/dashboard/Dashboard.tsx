@@ -149,7 +149,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* 游客模式 banner */}
       {!isLoggedIn && (
         <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-400">
@@ -167,7 +167,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       />
 
       {/* 统计卡片 */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="总资产"
           value={formatCNY(totalValueCNY)}
@@ -193,7 +193,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
         <PortfolioSnapshotPanel
           snapshots={snapshots}
           selectedSnapshot={selectedSnapshot}

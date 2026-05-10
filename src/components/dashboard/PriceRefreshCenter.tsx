@@ -127,19 +127,19 @@ export function PriceRefreshCenter({
   ]
 
   return (
-    <Card className={failed > 0 || expanded ? undefined : 'bg-card/70'}>
+    <Card className={failed > 0 || expanded ? undefined : 'bg-card/50'}>
       <CardContent className={failed > 0 || expanded ? 'p-4' : 'p-3'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className={cn(
-              'flex shrink-0 items-center justify-center rounded-lg border border-border/50 bg-background/50',
+              'flex shrink-0 items-center justify-center rounded-md border border-border/30 bg-background/40',
               failed > 0 || expanded ? 'h-9 w-9' : 'h-8 w-8',
             )}>
               <RefreshCw className={cn('h-4 w-4 text-muted-foreground', refreshing && 'animate-spin')} />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold text-white">价格刷新</h3>
+                <h3 className="text-sm font-medium text-white">价格刷新</h3>
                 <span className={cn(
                   'rounded-full border px-2 py-0.5 text-[11px]',
                   failed > 0

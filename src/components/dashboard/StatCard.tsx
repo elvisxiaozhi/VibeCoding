@@ -24,13 +24,13 @@ export function StatCard({
         : 'text-white'
 
   return (
-    <Card>
-      <CardContent className="p-6">
+    <Card className="bg-card/60">
+      <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <Icon className="h-5 w-5 text-muted-foreground" />
+          <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
-        <p className={`mt-3 font-mono text-2xl font-bold ${valueColor}`}>
+        <p className={`mt-2 font-mono text-xl font-semibold ${valueColor}`}>
           {value}
         </p>
         {subtitle ? (

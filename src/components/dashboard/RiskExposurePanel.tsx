@@ -1,4 +1,6 @@
-import { AlertTriangle, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+
+import { AlertTriangle, ChevronDown, ChevronRight, ShieldCheck } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatMoney } from '@/lib/currency'
@@ -73,93 +75,109 @@ interface RiskExposurePanelProps {
 
 export function RiskExposurePanel({ risk }: RiskExposurePanelProps) {
   const hasAlerts = risk.alerts.length > 0
+  const [detailsOpen, setDetailsOpen] = useState(hasAlerts)
+  const showDetails = hasAlerts || detailsOpen
 
   return (
     <Card>
-      <CardHeader className="pb-4">
+      <CardHeader className={showDetails ? 'pb-4' : 'pb-5'}>
         <div className="flex items-center justify-between gap-4">
           <CardTitle className="text-white">风险暴露</CardTitle>
-          <div className={cn(
-            'flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
-            hasAlerts
-              ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
-              : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-          )}>
-            {hasAlerts ? (
-              <AlertTriangle className="h-3.5 w-3.5" />
-            ) : (
-              <ShieldCheck className="h-3.5 w-3.5" />
-            )}
-            <span>{hasAlerts ? `${risk.alerts.length} 项提醒` : '未触发阈值'}</span>
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              'flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
+              hasAlerts
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+            )}>
+              {hasAlerts ? (
+                <AlertTriangle className="h-3.5 w-3.5" />
+              ) : (
+                <ShieldCheck className="h-3.5 w-3.5" />
+              )}
+              <span>{hasAlerts ? `${risk.alerts.length} 项提醒` : '未触发阈值'}</span>
+            </div>
+            {!hasAlerts ? (
+              <button
+                type="button"
+                className="flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-white/5 hover:text-white"
+                onClick={() => setDetailsOpen((value) => !value)}
+              >
+                {detailsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                明细
+              </button>
+            ) : null}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {hasAlerts ? (
-          <div className="space-y-2">
-            {risk.alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={cn(
-                  'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm',
-                  alert.severity === 'danger'
-                    ? 'border-red-500/50 bg-red-500/10 text-red-200'
-                    : 'border-amber-500/50 bg-amber-500/10 text-amber-200',
-                )}
-              >
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{alert.message}</span>
+      {showDetails ? (
+        <CardContent className="space-y-5">
+          {hasAlerts ? (
+            <div className="space-y-2">
+              {risk.alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={cn(
+                    'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm',
+                    alert.severity === 'danger'
+                      ? 'border-red-500/50 bg-red-500/10 text-red-200'
+                      : 'border-amber-500/50 bg-amber-500/10 text-amber-200',
+                  )}
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{alert.message}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-white">币种暴露</h3>
+              <div className="space-y-2">
+                {risk.currency.map((item) => (
+                  <ExposureBar key={item.key} item={item} />
+                ))}
               </div>
-            ))}
+            </section>
+
+            <section>
+              <h3 className="mb-3 text-sm font-medium text-white">市场暴露</h3>
+              <div className="space-y-2">
+                {risk.market.map((item) => (
+                  <ExposureBar key={item.key} item={item} />
+                ))}
+              </div>
+            </section>
           </div>
-        ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <section>
-            <h3 className="mb-3 text-sm font-medium text-white">币种暴露</h3>
-            <div className="space-y-2">
-              {risk.currency.map((item) => (
-                <ExposureBar key={item.key} item={item} />
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="mb-3 text-sm font-medium text-white">市场暴露</h3>
-            <div className="space-y-2">
-              {risk.market.map((item) => (
-                <ExposureBar key={item.key} item={item} />
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-4">
-          <ConcentrationMetric
-            label="最大单一标的"
-            value={risk.largestHolding ? formatPercent(risk.largestHolding.ratio) : '—'}
-            detail={risk.largestHolding?.symbol}
-            severity={risk.largestHolding?.severity ?? 'normal'}
-          />
-          <ConcentrationMetric
-            label="Top 5 持仓占比"
-            value={formatPercent(risk.top5Ratio)}
-            detail={risk.top5Holdings.map((item) => item.symbol).join(' / ') || '暂无持仓'}
-            severity={risk.top5Severity}
-          />
-          <ConcentrationMetric
-            label="持仓标的数"
-            value={`${risk.holdingCount}`}
-            detail="按 symbol 汇总"
-          />
-          <ConcentrationMetric
-            label="高亮提醒"
-            value={`${risk.alerts.length}`}
-            detail="超过预设阈值"
-            severity={hasAlerts ? 'warning' : 'normal'}
-          />
-        </div>
-      </CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <ConcentrationMetric
+              label="最大单一标的"
+              value={risk.largestHolding ? formatPercent(risk.largestHolding.ratio) : '—'}
+              detail={risk.largestHolding?.symbol}
+              severity={risk.largestHolding?.severity ?? 'normal'}
+            />
+            <ConcentrationMetric
+              label="Top 5 持仓占比"
+              value={formatPercent(risk.top5Ratio)}
+              detail={risk.top5Holdings.map((item) => item.symbol).join(' / ') || '暂无持仓'}
+              severity={risk.top5Severity}
+            />
+            <ConcentrationMetric
+              label="持仓标的数"
+              value={`${risk.holdingCount}`}
+              detail="按 symbol 汇总"
+            />
+            <ConcentrationMetric
+              label="高亮提醒"
+              value={`${risk.alerts.length}`}
+              detail="超过预设阈值"
+              severity={hasAlerts ? 'warning' : 'normal'}
+            />
+          </div>
+        </CardContent>
+      ) : null}
     </Card>
   )
 }
