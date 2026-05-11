@@ -54,10 +54,13 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { assets, loading, refetch } = useAssets(isLoggedIn, ownerFilter)
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
   const [includeProvidentFund, setIncludeProvidentFund] = useState(false)
+  const [includeGold, setIncludeGold] = useState(true)
   const { rates, loading: ratesLoading } = useExchangeRates()
-  const dashboardAssets = includeProvidentFund
-    ? assets
-    : assets.filter((a) => a.category !== 'provident_fund')
+  const dashboardAssets = assets.filter((a) => {
+    if (!includeProvidentFund && a.category === 'provident_fund') return false
+    if (!includeGold && a.category === 'gold') return false
+    return true
+  })
   const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(dashboardAssets)
   const {
     statuses: priceRefreshStatuses,
@@ -85,6 +88,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const sellRecords = dashboardAssets.filter((a) => a.quantity < 0)
   const providentFundValueCNY = assets
     .filter((a) => a.category === 'provident_fund' && a.quantity > 0)
+    .reduce((s, a) => s + assetMVInCNY(a, rates), 0)
+  const goldValueCNY = assets
+    .filter((a) => a.category === 'gold' && a.quantity > 0)
     .reduce((s, a) => s + assetMVInCNY(a, rates), 0)
 
   // 汇率换算后的总值（人民币），含分红
@@ -179,19 +185,41 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         onRefreshOne={refreshOnePrice}
       />
 
-      <div className="flex flex-col items-start justify-between gap-2 rounded-xl border border-border/50 bg-card px-3 py-3 sm:flex-row sm:items-center sm:px-4">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-white">
-          <input
-            type="checkbox"
-            checked={includeProvidentFund}
-            onChange={(e) => setIncludeProvidentFund(e.target.checked)}
-            className="h-4 w-4 rounded border-border bg-background accent-[#f97316]"
-          />
-          包含公积金
-        </label>
-        <span className="text-xs text-muted-foreground">
-          当前公积金余额：<span className="font-mono text-white">{formatCNY(providentFundValueCNY)}</span>
-        </span>
+      <div className="rounded-xl border border-border/50 bg-card px-3 py-3 sm:px-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-white">总览口径</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">控制首页统计是否纳入低流动性资产</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-white">
+              <input
+                type="checkbox"
+                checked={includeProvidentFund}
+                onChange={(e) => setIncludeProvidentFund(e.target.checked)}
+                className="h-4 w-4 rounded border-border bg-background accent-[#f97316]"
+              />
+              包含公积金
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-white">
+              <input
+                type="checkbox"
+                checked={includeGold}
+                onChange={(e) => setIncludeGold(e.target.checked)}
+                className="h-4 w-4 rounded border-border bg-background accent-[#facc15]"
+              />
+              包含黄金
+            </label>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+          <span>
+            公积金 <span className="font-mono text-white">{formatCNY(providentFundValueCNY)}</span>
+          </span>
+          <span>
+            黄金 <span className="font-mono text-white">{formatCNY(goldValueCNY)}</span>
+          </span>
+        </div>
       </div>
 
       {/* 统计卡片 */}

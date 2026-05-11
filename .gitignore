@@ -28,6 +28,7 @@ dist-ssr
 
 # Go backend
 server/data.db
+server/*.db
 server/assets.db
 server/vibecoding-server
 server/asset-dashboard

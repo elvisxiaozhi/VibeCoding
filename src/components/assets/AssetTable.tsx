@@ -40,6 +40,7 @@ import {
 import { useAssets } from '@/hooks/useAssets'
 import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
+import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory, type AssetSubcategory } from '@/lib/assetClassification'
 import { annualizedReturnIfReady, costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingDays, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
@@ -100,6 +101,19 @@ interface SymbolGroup {
   holdingDays: number
 }
 
+interface SubcategoryGroup {
+  key: AssetSubcategory
+  label: string
+  groups: SymbolGroup[]
+}
+
+interface DisplayGroup {
+  key: DisplayGroupKey
+  label: string
+  groups: SymbolGroup[]
+  subgroups: SubcategoryGroup[]
+}
+
 function formatPercent(n: number): string {
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`
 }
@@ -136,6 +150,39 @@ function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
       if (isCashLikeCurrencyAsset(group)) return Number.NEGATIVE_INFINITY
       return group.holdingDays
   }
+}
+
+function sortSymbolGroups(groups: SymbolGroup[], sortKey: SortKey, sortDir: SortDir): SymbolGroup[] {
+  return [...groups].sort((a, b) => {
+    const va = getGroupSortValue(a, sortKey)
+    const vb = getGroupSortValue(b, sortKey)
+    let cmp: number
+    if (typeof va === 'string' && typeof vb === 'string') {
+      cmp = va.localeCompare(vb, 'zh-CN')
+    } else {
+      cmp = (va as number) - (vb as number)
+    }
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+}
+
+function groupBySubcategory(groups: SymbolGroup[], sortKey: SortKey, sortDir: SortDir): SubcategoryGroup[] {
+  const map = new Map<AssetSubcategory, SymbolGroup[]>()
+  for (const key of ASSET_SUBCATEGORY_ORDER) map.set(key, [])
+
+  for (const group of groups) {
+    const representative = group.openLots[0] ?? group.sellRecords[0] ?? group.dividendRecords[0] ?? group.allRecords[0]
+    const key = classifyAssetSubcategory(representative)
+    map.get(key)?.push(group)
+  }
+
+  return ASSET_SUBCATEGORY_ORDER
+    .map((key) => ({
+      key,
+      label: ASSET_SUBCATEGORY_LABELS[key],
+      groups: sortSymbolGroups(map.get(key) ?? [], sortKey, sortDir),
+    }))
+    .filter((item) => item.groups.length > 0)
 }
 
 /** 将 assets 按 symbol 合并为 SymbolGroup（聚合只算持仓） */
@@ -265,7 +312,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   )
 
   // 按展示板块分组：现金和公积金独立展示，其余资产按市场展示。
-  const groupedByDisplay = useMemo(() => {
+  const groupedByDisplay = useMemo<DisplayGroup[]>(() => {
     const groupOrder: DisplayGroupKey[] = [...MARKET_ORDER, 'cash', 'provident_fund']
     const groupMap = new Map<DisplayGroupKey, Asset[]>()
     for (const key of groupOrder) groupMap.set(key, [])
@@ -279,19 +326,13 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     return groupOrder
       .filter((key) => (groupMap.get(key)?.length ?? 0) > 0)
       .map((key) => {
-        const symbolGroups = groupBySymbol(groupMap.get(key)!)
-        symbolGroups.sort((a, b) => {
-          const va = getGroupSortValue(a, sortKey)
-          const vb = getGroupSortValue(b, sortKey)
-          let cmp: number
-          if (typeof va === 'string' && typeof vb === 'string') {
-            cmp = va.localeCompare(vb, 'zh-CN')
-          } else {
-            cmp = (va as number) - (vb as number)
-          }
-          return sortDir === 'asc' ? cmp : -cmp
-        })
-        return { key, label: DISPLAY_GROUP_LABELS[key], groups: symbolGroups }
+        const symbolGroups = sortSymbolGroups(groupBySymbol(groupMap.get(key)!), sortKey, sortDir)
+        return {
+          key,
+          label: DISPLAY_GROUP_LABELS[key],
+          groups: symbolGroups,
+          subgroups: groupBySubcategory(symbolGroups, sortKey, sortDir),
+        }
       })
   }, [assets, sortKey, sortDir])
 
@@ -442,7 +483,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
           )}
 
           {/* 按板块分组的表格 */}
-          {groupedByDisplay.map(({ key: groupKey, label: groupLabel, groups: symbolGroups }) => {
+          {groupedByDisplay.map(({ key: groupKey, label: groupLabel, groups: symbolGroups, subgroups }) => {
         const allOpenLots = symbolGroups.flatMap((g) => g.openLots)
         const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
@@ -490,9 +531,39 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
               </div>
             </div>
 
+            {subgroups.map((subgroup) => {
+              const subOpenLots = subgroup.groups.flatMap((g) => g.openLots)
+              const subMVCNY = subOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
+              const subCostCNY = subOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
+              const subDivCNY = subgroup.groups
+                .flatMap((g) => g.dividendRecords)
+                .reduce((s, a) => s + toCNY(a.dividends ?? 0, a.currency, rates), 0)
+              const subPnLCNY = subMVCNY - subCostCNY + subDivCNY
+              const isSubPositive = subPnLCNY >= 0
+
+              return (
+                <div key={subgroup.key} className="space-y-2">
+                  <div className="flex flex-col gap-1 rounded-lg border border-border/30 bg-background/25 px-3 py-2 sm:flex-row sm:items-baseline sm:justify-between">
+                    <h4 className="text-xs font-semibold text-muted-foreground">{subgroup.label}</h4>
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>
+                        {subgroup.groups.length} 个标的
+                      </span>
+                      <span>
+                        小计 <span className="font-mono text-white">{formatMoney(subMVCNY, 'CNY')}</span>
+                      </span>
+                      <span>
+                        盈亏{' '}
+                        <span className={`font-mono ${isSubPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+                          {isSubPositive ? '+' : ''}{formatMoney(subPnLCNY, 'CNY')}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
             {/* 移动端卡片 */}
             <div className="space-y-3 md:hidden">
-              {symbolGroups.map((group) => {
+              {subgroup.groups.map((group) => {
                 const isClosed = group.openLots.length === 0
                 const isPositive = group.totalPnL >= 0
                 const totalRecords = group.allRecords.length
@@ -629,7 +700,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {symbolGroups.map((group) => {
+                  {subgroup.groups.map((group) => {
                     const isClosed = group.openLots.length === 0
                     const isPositive = group.totalPnL >= 0
                     const isAnnPositive = (group.annReturn ?? 0) >= 0
@@ -1024,6 +1095,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                 </TableBody>
               </Table>
             </div>
+                </div>
+              )
+            })}
           </div>
         )
           })}

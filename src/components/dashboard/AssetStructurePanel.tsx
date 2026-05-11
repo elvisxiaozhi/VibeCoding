@@ -4,6 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory } from '@/lib/assetClassification'
 import { formatMoney } from '@/lib/currency'
 import type { Asset } from '@/lib/types'
 import {
@@ -18,7 +19,7 @@ import {
   isCashLikeCurrencyAsset,
 } from '@/lib/types'
 
-type StructureView = 'category' | 'market' | 'currency' | 'owner'
+type StructureView = 'category' | 'subcategory' | 'market' | 'currency' | 'owner'
 
 interface StructureItem {
   key: string
@@ -46,6 +47,7 @@ const COLORS = ['#60a5fa', '#f97316', '#22c55e', '#e879f9', '#facc15', '#38bdf8'
 
 const VIEWS: { key: StructureView; label: string }[] = [
   { key: 'category', label: '分类' },
+  { key: 'subcategory', label: '细分' },
   { key: 'market', label: '市场' },
   { key: 'currency', label: '币种' },
   { key: 'owner', label: '归属' },
@@ -60,6 +62,8 @@ function buildItems(
   const definitions =
     view === 'category'
       ? CATEGORY_ORDER.map((key) => ({ key, label: CATEGORY_LABELS[key] }))
+      : view === 'subcategory'
+        ? ASSET_SUBCATEGORY_ORDER.map((key) => ({ key, label: ASSET_SUBCATEGORY_LABELS[key] }))
       : view === 'market'
         ? ([...MARKET_ORDER, 'cash', 'provident_fund'] as MarketStructureKey[]).map((key) => ({ key, label: MARKET_STRUCTURE_LABELS[key] }))
         : view === 'currency'
@@ -73,6 +77,8 @@ function buildItems(
     const key =
       view === 'category'
         ? asset.category
+        : view === 'subcategory'
+          ? classifyAssetSubcategory(asset)
         : view === 'market'
           ? asset.category === 'provident_fund'
             ? 'provident_fund'
