@@ -1,4 +1,4 @@
-export type AssetCategory = 'stock' | 'etf' | 'gold' | 'crypto' | 'cash' | 'currency' | 'provident_fund'
+export type AssetCategory = 'stock' | 'etf' | 'gold' | 'crypto' | 'cash' | 'currency' | 'provident_fund' | 'option'
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   stock: '股票',
@@ -8,9 +8,10 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   cash: '现金',
   currency: '货币',
   provident_fund: '公积金',
+  option: '期权',
 }
 
-export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'gold', 'crypto', 'cash', 'currency', 'provident_fund']
+export const CATEGORY_ORDER: AssetCategory[] = ['stock', 'etf', 'gold', 'crypto', 'cash', 'currency', 'provident_fund', 'option']
 
 export type MarketType = 'cn' | 'hk' | 'us' | 'crypto' | 'gold'
 
@@ -94,6 +95,11 @@ export interface Asset {
   dividends: number
   owner: OwnerType
   note: string
+  optionType?: '' | 'call' | 'put'
+  underlyingSymbol?: string
+  strikePrice?: number
+  expiryDate?: string
+  contractMultiplier?: number
   purchasedAt: string
   createdAt: string
   updatedAt: string

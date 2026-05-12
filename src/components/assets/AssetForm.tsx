@@ -34,6 +34,11 @@ export interface AssetFormData {
   dividends: number
   owner: OwnerType
   note: string
+  optionType: '' | 'call' | 'put'
+  underlyingSymbol: string
+  strikePrice: number
+  expiryDate: string
+  contractMultiplier: number
 }
 
 interface FormErrors {
@@ -41,6 +46,10 @@ interface FormErrors {
   costBasis?: string
   currentPrice?: string
   quantity?: string
+  underlyingSymbol?: string
+  strikePrice?: string
+  expiryDate?: string
+  contractMultiplier?: string
 }
 
 const EMPTY_FORM: AssetFormData = {
@@ -55,6 +64,11 @@ const EMPTY_FORM: AssetFormData = {
   dividends: 0,
   owner: 'me',
   note: '',
+  optionType: '',
+  underlyingSymbol: '',
+  strikePrice: 0,
+  expiryDate: '',
+  contractMultiplier: 1,
 }
 
 export function AssetForm({
@@ -68,6 +82,7 @@ export function AssetForm({
   const [errors, setErrors] = useState<FormErrors>({})
 
   const isCurrency = form.category === 'currency'
+  const isOption = form.category === 'option'
 
   // 打开弹窗时：编辑模式预填充，新增模式重置
   useEffect(() => {
@@ -85,6 +100,11 @@ export function AssetForm({
         dividends: asset.dividends ?? 0,
         owner: (asset.owner as OwnerType) || 'me',
         note: asset.note ?? '',
+        optionType: asset.optionType ?? '',
+        underlyingSymbol: asset.underlyingSymbol ?? '',
+        strikePrice: asset.strikePrice ?? 0,
+        expiryDate: asset.expiryDate ?? '',
+        contractMultiplier: asset.contractMultiplier ?? 1,
       })
     } else {
       setForm(EMPTY_FORM)
@@ -94,10 +114,14 @@ export function AssetForm({
 
   function validate(): boolean {
     const e: FormErrors = {}
-    if (!form.symbol.trim()) e.symbol = isCurrency ? '请选择货币' : '请输入资产代码/名称'
+    if (!isOption && !form.symbol.trim()) e.symbol = isCurrency ? '请选择货币' : '请输入资产代码/名称'
     if (form.costBasis <= 0) e.costBasis = isCurrency ? '买入汇率必须大于 0' : '成本价必须大于 0'
     if (form.currentPrice <= 0) e.currentPrice = isCurrency ? '当前汇率必须大于 0' : '现价必须大于 0'
     if (form.quantity <= 0) e.quantity = '数量必须大于 0'
+    if (isOption && !form.underlyingSymbol.trim()) e.underlyingSymbol = '请输入期权标的'
+    if (isOption && form.strikePrice <= 0) e.strikePrice = '行权价必须大于 0'
+    if (isOption && !form.expiryDate) e.expiryDate = '请选择到期日'
+    if (isOption && form.contractMultiplier <= 0) e.contractMultiplier = '合约乘数必须大于 0'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -105,7 +129,17 @@ export function AssetForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate()) return
-    onSubmit(form)
+    onSubmit({
+      ...form,
+      symbol: isOption
+        ? `${form.underlyingSymbol.trim()} ${form.expiryDate} ${form.optionType === 'put' ? 'P' : 'C'} ${form.strikePrice}`
+        : form.symbol,
+      optionType: isOption ? (form.optionType || 'call') : '',
+      underlyingSymbol: isOption ? form.underlyingSymbol.trim() : '',
+      strikePrice: isOption ? form.strikePrice : 0,
+      expiryDate: isOption ? form.expiryDate : '',
+      contractMultiplier: isOption ? form.contractMultiplier : 1,
+    })
     onOpenChange(false)
   }
 
@@ -123,6 +157,28 @@ export function AssetForm({
     if (cat !== 'currency' && form.category === 'currency') {
       setField('symbol', '')
     }
+    if (cat === 'option') {
+      setForm((prev) => ({
+        ...prev,
+        category: cat,
+        symbol: '',
+        market: prev.market === 'hk' ? 'hk' : 'us',
+        currency: prev.market === 'hk' ? 'HKD' : 'USD',
+        optionType: prev.optionType || 'call',
+        contractMultiplier: prev.contractMultiplier > 1 ? prev.contractMultiplier : 100,
+      }))
+    }
+  }
+
+  function handleMarketChange(market: MarketType) {
+    setForm((prev) => ({
+      ...prev,
+      market,
+      currency: prev.category === 'option'
+        ? market === 'hk' ? 'HKD' : 'USD'
+        : prev.currency,
+      contractMultiplier: prev.category === 'option' && prev.contractMultiplier <= 1 ? 100 : prev.contractMultiplier,
+    }))
   }
 
   function handleCurrencySelect(code: CurrencyCode) {
@@ -173,10 +229,10 @@ export function AssetForm({
             <select
               id="market"
               value={form.market}
-              onChange={(e) => setField('market', e.target.value as MarketType)}
+              onChange={(e) => handleMarketChange(e.target.value as MarketType)}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              {MARKET_ORDER.map((m) => (
+              {(isOption ? MARKET_ORDER.filter((m) => m === 'us' || m === 'hk') : MARKET_ORDER).map((m) => (
                 <option key={m} value={m} className="bg-popover text-popover-foreground">
                   {MARKET_LABELS[m]}
                 </option>
@@ -186,7 +242,7 @@ export function AssetForm({
 
           {/* 代码/名称 或 货币选择 */}
           <div className="space-y-2">
-            <Label htmlFor="symbol">{isCurrency ? '货币' : '资产代码/名称'}</Label>
+            <Label htmlFor="symbol">{isCurrency ? '货币' : isOption ? '合约名称' : '资产代码/名称'}</Label>
             {isCurrency ? (
               <select
                 id="symbol"
@@ -200,6 +256,15 @@ export function AssetForm({
                   </option>
                 ))}
               </select>
+            ) : isOption ? (
+              <Input
+                id="symbol"
+                value={form.underlyingSymbol && form.expiryDate && form.strikePrice > 0
+                  ? `${form.underlyingSymbol.trim()} ${form.expiryDate} ${form.optionType === 'put' ? 'P' : 'C'} ${form.strikePrice}`
+                  : ''}
+                placeholder="会根据下方期权字段自动生成"
+                readOnly
+              />
             ) : (
               <Input
                 id="symbol"
@@ -212,6 +277,53 @@ export function AssetForm({
               <p className="text-xs text-[#ef4444]">{errors.symbol}</p>
             ) : null}
           </div>
+
+          {isOption && (
+            <div className="space-y-4 rounded-lg border border-border/40 bg-background/40 p-3">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="underlyingSymbol">期权标的</Label>
+                  <Input
+                    id="underlyingSymbol"
+                    placeholder={form.market === 'hk' ? '如 0700' : '如 AAPL'}
+                    value={form.underlyingSymbol}
+                    onChange={(e) => setField('underlyingSymbol', e.target.value.toUpperCase())}
+                  />
+                  {errors.underlyingSymbol ? <p className="text-xs text-[#ef4444]">{errors.underlyingSymbol}</p> : null}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="optionType">方向</Label>
+                  <select
+                    id="optionType"
+                    value={form.optionType || 'call'}
+                    onChange={(e) => setField('optionType', e.target.value as 'call' | 'put')}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="call" className="bg-popover text-popover-foreground">Call 看涨</option>
+                    <option value="put" className="bg-popover text-popover-foreground">Put 看跌</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="strikePrice">行权价</Label>
+                  <Input id="strikePrice" type="number" step="any" min="0" value={form.strikePrice || ''} onChange={(e) => setField('strikePrice', parseFloat(e.target.value) || 0)} />
+                  {errors.strikePrice ? <p className="text-xs text-[#ef4444]">{errors.strikePrice}</p> : null}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expiryDate">到期日</Label>
+                  <Input id="expiryDate" type="date" value={form.expiryDate} onChange={(e) => setField('expiryDate', e.target.value)} />
+                  {errors.expiryDate ? <p className="text-xs text-[#ef4444]">{errors.expiryDate}</p> : null}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contractMultiplier">合约乘数</Label>
+                  <Input id="contractMultiplier" type="number" step="any" min="0" value={form.contractMultiplier || ''} onChange={(e) => setField('contractMultiplier', parseFloat(e.target.value) || 0)} />
+                  {errors.contractMultiplier ? <p className="text-xs text-[#ef4444]">{errors.contractMultiplier}</p> : null}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">美股标准合约通常为 100；港股期权请按实际合约乘数填写。</p>
+            </div>
+          )}
 
           {/* 成本价/买入汇率 + 现价/当前汇率 */}
           <div className="grid gap-4 sm:grid-cols-2">

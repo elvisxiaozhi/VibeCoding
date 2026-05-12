@@ -172,7 +172,7 @@ func (h *PriceRefresh) refreshAssets(userID string, assets []model.Asset) []mode
 			ErrorMessage:  "",
 			UpdatedAt:     now,
 		}
-		if asset.Category == model.CategoryCash || asset.Category == model.CategoryCurrency || asset.Category == model.CategoryProvidentFund {
+		if asset.Category == model.CategoryCash || asset.Category == model.CategoryCurrency || asset.Category == model.CategoryProvidentFund || asset.Category == model.CategoryOption {
 			status.ErrorMessage = "fixed price"
 			_ = h.Store.UpsertAssetPriceStatus(status)
 			results = append(results, status)
@@ -337,7 +337,7 @@ func quotePrice(symbol, source string, quotes []QuoteResult, err error) (float64
 }
 
 func priceSource(asset model.Asset) string {
-	if asset.Category == model.CategoryCash || asset.Category == model.CategoryCurrency || asset.Category == model.CategoryProvidentFund {
+	if asset.Category == model.CategoryCash || asset.Category == model.CategoryCurrency || asset.Category == model.CategoryProvidentFund || asset.Category == model.CategoryOption {
 		return "fixed"
 	}
 	if fundCodeMap[asset.Symbol] != "" {

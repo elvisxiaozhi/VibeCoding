@@ -8,6 +8,7 @@ export type AssetSubcategory =
   | 'stock'
   | 'gold'
   | 'crypto'
+  | 'option'
 
 export const ASSET_SUBCATEGORY_LABELS: Record<AssetSubcategory, string> = {
   cash_like: '现金类',
@@ -17,6 +18,7 @@ export const ASSET_SUBCATEGORY_LABELS: Record<AssetSubcategory, string> = {
   stock: '股票',
   gold: '黄金',
   crypto: '加密货币',
+  option: '期权',
 }
 
 export const ASSET_SUBCATEGORY_ORDER: AssetSubcategory[] = [
@@ -26,6 +28,7 @@ export const ASSET_SUBCATEGORY_ORDER: AssetSubcategory[] = [
   'stock',
   'gold',
   'crypto',
+  'option',
   'provident_fund',
 ]
 
@@ -51,6 +54,7 @@ export function classifyAssetSubcategory(asset: Pick<Asset, 'category' | 'market
   if (isCashLikeCurrencyAsset(asset)) return 'cash_like'
   if (asset.category === 'gold') return 'gold'
   if (asset.category === 'crypto') return 'crypto'
+  if (asset.category === 'option') return 'option'
   if (asset.category === 'stock') return 'stock'
 
   if (asset.category === 'etf') {

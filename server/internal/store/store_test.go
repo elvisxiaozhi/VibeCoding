@@ -31,6 +31,11 @@ func setupTestStore(t *testing.T) *Store {
 		dividends     REAL    NOT NULL DEFAULT 0,
 		owner         TEXT    NOT NULL DEFAULT 'me',
 		note          TEXT    NOT NULL DEFAULT '',
+		option_type         TEXT    NOT NULL DEFAULT '',
+		underlying_symbol   TEXT    NOT NULL DEFAULT '',
+		strike_price        REAL    NOT NULL DEFAULT 0,
+		expiry_date         TEXT    NOT NULL DEFAULT '',
+		contract_multiplier REAL    NOT NULL DEFAULT 1,
 		purchased_at  TEXT    NOT NULL DEFAULT '',
 		created_at    TEXT    NOT NULL,
 		updated_at    TEXT    NOT NULL

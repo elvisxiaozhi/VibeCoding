@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatMoney } from '@/lib/currency'
+import { marketValue } from '@/lib/calc'
 import type { PortfolioSnapshot, SnapshotDimension } from '@/lib/types'
 import { CATEGORY_LABELS } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -228,7 +229,7 @@ export function PortfolioSnapshotPanel({
                         .filter((asset) => asset.quantity > 0)
                         .slice(0, 12)
                         .map((asset) => {
-                          const value = asset.currentPrice * asset.quantity
+                          const value = marketValue(asset)
                           const pnl = (asset.currentPrice - asset.costBasis) * asset.quantity
                           return (
                             <TableRow key={asset.id} className="border-border/40 hover:bg-white/5">

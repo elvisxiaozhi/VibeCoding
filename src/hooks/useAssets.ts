@@ -126,6 +126,11 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
         dividends: patch.dividends ?? current.dividends,
         owner: patch.owner ?? current.owner,
         note: patch.note ?? current.note,
+        optionType: patch.optionType ?? current.optionType,
+        underlyingSymbol: patch.underlyingSymbol ?? current.underlyingSymbol,
+        strikePrice: patch.strikePrice ?? current.strikePrice,
+        expiryDate: patch.expiryDate ?? current.expiryDate,
+        contractMultiplier: patch.contractMultiplier ?? current.contractMultiplier,
         purchasedAt: patch.purchasedAt ?? current.purchasedAt,
       }
 

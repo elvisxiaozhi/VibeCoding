@@ -63,17 +63,22 @@ func (h *Assets) get(w http.ResponseWriter, r *http.Request) {
 
 // createRequest 新增资产的请求体（不含 id / createdAt / updatedAt）
 type createRequest struct {
-	Symbol       string  `json:"symbol"`
-	Category     string  `json:"category"`
-	Market       string  `json:"market"`
-	CostBasis    float64 `json:"costBasis"`
-	CurrentPrice float64 `json:"currentPrice"`
-	Quantity     float64 `json:"quantity"`
-	Currency     string  `json:"currency"`
-	Dividends    float64 `json:"dividends"`
-	Owner        string  `json:"owner"`
-	Note         string  `json:"note"`
-	PurchasedAt  string  `json:"purchasedAt"`
+	Symbol             string  `json:"symbol"`
+	Category           string  `json:"category"`
+	Market             string  `json:"market"`
+	CostBasis          float64 `json:"costBasis"`
+	CurrentPrice       float64 `json:"currentPrice"`
+	Quantity           float64 `json:"quantity"`
+	Currency           string  `json:"currency"`
+	Dividends          float64 `json:"dividends"`
+	Owner              string  `json:"owner"`
+	Note               string  `json:"note"`
+	OptionType         string  `json:"optionType"`
+	UnderlyingSymbol   string  `json:"underlyingSymbol"`
+	StrikePrice        float64 `json:"strikePrice"`
+	ExpiryDate         string  `json:"expiryDate"`
+	ContractMultiplier float64 `json:"contractMultiplier"`
+	PurchasedAt        string  `json:"purchasedAt"`
 }
 
 // POST /api/assets — 新增资产
@@ -92,21 +97,26 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	asset := model.Asset{
-		ID:           uuid.NewString(),
-		UserID:       userID,
-		Symbol:       req.Symbol,
-		Category:     req.Category,
-		Market:       req.Market,
-		CostBasis:    req.CostBasis,
-		CurrentPrice: req.CurrentPrice,
-		Quantity:     req.Quantity,
-		Currency:     req.Currency,
-		Dividends:    req.Dividends,
-		Owner:        req.Owner,
-		Note:         req.Note,
-		PurchasedAt:  req.PurchasedAt,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                 uuid.NewString(),
+		UserID:             userID,
+		Symbol:             req.Symbol,
+		Category:           req.Category,
+		Market:             req.Market,
+		CostBasis:          req.CostBasis,
+		CurrentPrice:       req.CurrentPrice,
+		Quantity:           req.Quantity,
+		Currency:           req.Currency,
+		Dividends:          req.Dividends,
+		Owner:              req.Owner,
+		Note:               req.Note,
+		OptionType:         req.OptionType,
+		UnderlyingSymbol:   req.UnderlyingSymbol,
+		StrikePrice:        req.StrikePrice,
+		ExpiryDate:         req.ExpiryDate,
+		ContractMultiplier: req.ContractMultiplier,
+		PurchasedAt:        req.PurchasedAt,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	if asset.Currency == "" {
 		asset.Currency = "CNY"
@@ -120,6 +130,7 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 	if asset.Owner == "" {
 		asset.Owner = "me"
 	}
+	applyOptionDefaults(&asset)
 
 	if err := h.Store.CreateAsset(asset); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -130,17 +141,22 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 
 // updateRequest 更新资产的请求体
 type updateRequest struct {
-	Symbol       string  `json:"symbol"`
-	Category     string  `json:"category"`
-	Market       string  `json:"market"`
-	CostBasis    float64 `json:"costBasis"`
-	CurrentPrice float64 `json:"currentPrice"`
-	Quantity     float64 `json:"quantity"`
-	Currency     string  `json:"currency"`
-	Dividends    float64 `json:"dividends"`
-	Owner        string  `json:"owner"`
-	Note         string  `json:"note"`
-	PurchasedAt  string  `json:"purchasedAt"`
+	Symbol             string  `json:"symbol"`
+	Category           string  `json:"category"`
+	Market             string  `json:"market"`
+	CostBasis          float64 `json:"costBasis"`
+	CurrentPrice       float64 `json:"currentPrice"`
+	Quantity           float64 `json:"quantity"`
+	Currency           string  `json:"currency"`
+	Dividends          float64 `json:"dividends"`
+	Owner              string  `json:"owner"`
+	Note               string  `json:"note"`
+	OptionType         string  `json:"optionType"`
+	UnderlyingSymbol   string  `json:"underlyingSymbol"`
+	StrikePrice        float64 `json:"strikePrice"`
+	ExpiryDate         string  `json:"expiryDate"`
+	ContractMultiplier float64 `json:"contractMultiplier"`
+	PurchasedAt        string  `json:"purchasedAt"`
 }
 
 // PUT /api/assets/{id} — 更新资产
@@ -164,24 +180,33 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
+	if err := validateUpdate(req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	asset := model.Asset{
-		ID:           id,
-		UserID:       userID,
-		Symbol:       req.Symbol,
-		Category:     req.Category,
-		Market:       req.Market,
-		CostBasis:    req.CostBasis,
-		CurrentPrice: req.CurrentPrice,
-		Quantity:     req.Quantity,
-		Currency:     req.Currency,
-		Dividends:    req.Dividends,
-		Owner:        req.Owner,
-		Note:         req.Note,
-		PurchasedAt:  req.PurchasedAt,
-		CreatedAt:    existing.CreatedAt,
-		UpdatedAt:    now,
+		ID:                 id,
+		UserID:             userID,
+		Symbol:             req.Symbol,
+		Category:           req.Category,
+		Market:             req.Market,
+		CostBasis:          req.CostBasis,
+		CurrentPrice:       req.CurrentPrice,
+		Quantity:           req.Quantity,
+		Currency:           req.Currency,
+		Dividends:          req.Dividends,
+		Owner:              req.Owner,
+		Note:               req.Note,
+		OptionType:         req.OptionType,
+		UnderlyingSymbol:   req.UnderlyingSymbol,
+		StrikePrice:        req.StrikePrice,
+		ExpiryDate:         req.ExpiryDate,
+		ContractMultiplier: req.ContractMultiplier,
+		PurchasedAt:        req.PurchasedAt,
+		CreatedAt:          existing.CreatedAt,
+		UpdatedAt:          now,
 	}
 	if asset.Currency == "" {
 		asset.Currency = existing.Currency
@@ -195,6 +220,22 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 	if asset.Owner == "" {
 		asset.Owner = existing.Owner
 	}
+	if asset.OptionType == "" {
+		asset.OptionType = existing.OptionType
+	}
+	if asset.UnderlyingSymbol == "" {
+		asset.UnderlyingSymbol = existing.UnderlyingSymbol
+	}
+	if asset.StrikePrice == 0 {
+		asset.StrikePrice = existing.StrikePrice
+	}
+	if asset.ExpiryDate == "" {
+		asset.ExpiryDate = existing.ExpiryDate
+	}
+	if asset.ContractMultiplier == 0 {
+		asset.ContractMultiplier = existing.ContractMultiplier
+	}
+	applyOptionDefaults(&asset)
 
 	if err := h.Store.UpdateAsset(asset); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -235,10 +276,64 @@ func validateCreate(req createRequest) error {
 		return errors.New("symbol is required")
 	}
 	switch req.Category {
-	case model.CategoryStock, model.CategoryETF, model.CategoryGold, model.CategoryCrypto, model.CategoryCash, model.CategoryCurrency, model.CategoryProvidentFund:
+	case model.CategoryStock, model.CategoryETF, model.CategoryGold, model.CategoryCrypto, model.CategoryCash, model.CategoryCurrency, model.CategoryProvidentFund, model.CategoryOption:
 		// valid
 	default:
-		return errors.New("category must be one of: stock, etf, gold, crypto, cash, currency, provident_fund")
+		return errors.New("category must be one of: stock, etf, gold, crypto, cash, currency, provident_fund, option")
+	}
+	if req.Category == model.CategoryOption {
+		if req.Market != model.MarketUs && req.Market != model.MarketHk {
+			return errors.New("option market must be us or hk")
+		}
+		if req.OptionType != "call" && req.OptionType != "put" {
+			return errors.New("optionType must be call or put")
+		}
+		if req.UnderlyingSymbol == "" {
+			return errors.New("underlyingSymbol is required for options")
+		}
+		if req.StrikePrice <= 0 {
+			return errors.New("strikePrice must be greater than 0 for options")
+		}
+		if req.ExpiryDate == "" {
+			return errors.New("expiryDate is required for options")
+		}
+		if req.ContractMultiplier <= 0 {
+			return errors.New("contractMultiplier must be greater than 0 for options")
+		}
 	}
 	return nil
+}
+
+func validateUpdate(req updateRequest) error {
+	return validateCreate(createRequest{
+		Symbol:             req.Symbol,
+		Category:           req.Category,
+		Market:             req.Market,
+		CostBasis:          req.CostBasis,
+		CurrentPrice:       req.CurrentPrice,
+		Quantity:           req.Quantity,
+		Currency:           req.Currency,
+		Dividends:          req.Dividends,
+		Owner:              req.Owner,
+		Note:               req.Note,
+		OptionType:         req.OptionType,
+		UnderlyingSymbol:   req.UnderlyingSymbol,
+		StrikePrice:        req.StrikePrice,
+		ExpiryDate:         req.ExpiryDate,
+		ContractMultiplier: req.ContractMultiplier,
+		PurchasedAt:        req.PurchasedAt,
+	})
+}
+
+func applyOptionDefaults(asset *model.Asset) {
+	if asset.ContractMultiplier <= 0 {
+		asset.ContractMultiplier = 1
+	}
+	if asset.Category != model.CategoryOption {
+		asset.OptionType = ""
+		asset.UnderlyingSymbol = ""
+		asset.StrikePrice = 0
+		asset.ExpiryDate = ""
+		asset.ContractMultiplier = 1
+	}
 }

@@ -41,7 +41,7 @@ import { useAssets } from '@/hooks/useAssets'
 import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory, type AssetSubcategory } from '@/lib/assetClassification'
-import { annualizedReturnIfReady, costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingDays, holdingsXIRR, marketValue, pnlValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
 
@@ -121,6 +121,28 @@ function formatPercent(n: number): string {
 function formatQty(qty: number, category: string): string {
   if (category === 'crypto') return String(qty)
   return parseFloat(qty.toFixed(2)).toString()
+}
+
+function pnlRate(group: SymbolGroup): number | null {
+  if (group.totalCost <= 0) return null
+  return group.totalPnL / group.totalCost
+}
+
+function recordLabel(record: Asset): string {
+  if (record.quantity < 0) return '卖出'
+  if (record.quantity === 0 && (record.dividends ?? 0) > 0) {
+    return record.note === '赎回' ? '赎回' : '分红'
+  }
+  if (record.quantity === 0) return '买入（已清仓）'
+  return '买入'
+}
+
+function recordValue(record: Asset): string {
+  if (record.quantity < 0) return `-${formatQty(Math.abs(record.quantity), record.category)}`
+  if (record.quantity === 0 && (record.dividends ?? 0) > 0) {
+    return `+${formatMoney(record.dividends ?? 0, record.currency)}`
+  }
+  return formatQty(record.quantity, record.category)
 }
 
 function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
@@ -257,16 +279,10 @@ interface ColumnDef {
 }
 
 const COLUMNS: ColumnDef[] = [
-  { key: 'symbol', label: '名称/代码', align: 'left' },
-  { key: 'category', label: '分类', align: 'left' },
-  { key: 'totalCost', label: '买入金额', align: 'right' },
-  { key: 'quantity', label: '数量', align: 'right' },
-  { key: 'costBasis', label: '成本价', align: 'right' },
-  { key: 'currentPrice', label: '现价', align: 'right' },
+  { key: 'symbol', label: '名称', align: 'left' },
   { key: 'marketValue', label: '市值', align: 'right' },
-  { key: 'dividends', label: '分红', align: 'right' },
-  { key: 'pnl', label: '盈亏额', align: 'right' },
-  { key: 'annualized', label: '年化收益率', align: 'right' },
+  { key: 'pnl', label: '盈亏额 / 盈亏率', align: 'right' },
+  { key: 'annualized', label: '年化', align: 'right' },
   { key: 'holdingDays', label: '持有期', align: 'right' },
 ]
 
@@ -561,540 +577,282 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     </div>
                   </div>
 
-            {/* 移动端卡片 */}
-            <div className="space-y-3 md:hidden">
-              {subgroup.groups.map((group) => {
-                const isClosed = group.openLots.length === 0
-                const isPositive = group.totalPnL >= 0
-                const totalRecords = group.allRecords.length
-                const hasMultiple = totalRecords > 1
-                const isExpanded = expanded.has(group.symbol)
-                const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
-                const realizedPnL = isClosed
-                  ? group.sellRecords.reduce((s, r) => s + (r.currentPrice - r.costBasis) * Math.abs(r.quantity), 0)
-                  : 0
-                const isRealizedPositive = realizedPnL >= 0
-                const detailRecords = [...group.allRecords]
-                  .sort((a, b) => {
-                    const dateCompare = b.purchasedAt.localeCompare(a.purchasedAt)
-                    return dateCompare !== 0 ? dateCompare : b.id.localeCompare(a.id)
-                  })
-                  .slice(0, 6)
+                  <div className="space-y-3 md:hidden">
+                    {subgroup.groups.map((group) => {
+                      const isClosed = group.openLots.length === 0
+                      const isPositive = group.totalPnL >= 0
+                      const groupPnlRate = pnlRate(group)
+                      const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
+                      const detailRecords = [...group.allRecords].sort((a, b) => {
+                        const dateCompare = b.purchasedAt.localeCompare(a.purchasedAt)
+                        return dateCompare !== 0 ? dateCompare : b.id.localeCompare(a.id)
+                      })
+                      const isExpanded = expanded.has(group.symbol)
+                      const visibleRecords = detailRecords.slice(0, 6)
 
-                return (
-                  <div key={group.symbol} className={`rounded-xl border border-border/50 bg-card p-4 ${isClosed ? 'opacity-70' : ''}`}>
-                    <button
-                      type="button"
-                      className="w-full text-left"
-                      onClick={hasMultiple ? () => toggleExpand(group.symbol) : undefined}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            {hasMultiple && (
-                              isExpanded
-                                ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            )}
-                            <div className="truncate font-medium text-white">{group.symbol}</div>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <span>{CATEGORY_LABELS[group.category as AssetCategory]}</span>
-                            {isClosed && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">已清仓</span>}
-                            {hasMultiple && <span>{totalRecords} 条记录</span>}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-mono text-lg text-white">
-                            {isClosed ? '—' : formatMoney(group.totalMV, group.currency)}
-                          </div>
-                          {!isClosed && group.currency !== 'CNY' && (
-                            <div className="text-[10px] text-muted-foreground">
-                              ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <div className="text-muted-foreground">数量</div>
-                          <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatQty(group.totalQuantity, group.category)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">成本</div>
-                          <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.totalCost, group.currency)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">盈亏</div>
-                          <div className={`mt-1 font-mono ${isClosed ? (isRealizedPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                            {isClosed
-                              ? `${isRealizedPositive ? '+' : ''}${formatMoney(realizedPnL, group.currency)}`
-                              : `${isPositive ? '+' : ''}${formatMoney(group.totalPnL, group.currency)}`}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">年化/持有</div>
-                          <div className="mt-1 font-mono text-white">
-                            {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null
-                              ? '—'
-                              : `${formatPercent(group.annReturn)} / ${formatHoldingDays(group.holdingDays)}`}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-
-                    {canEdit && !hasMultiple && !isClosed && (
-                      <div className="mt-4 flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(group.openLots[0])}>编辑</Button>
-                        <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => handleDeleteClick(group.openLots[0])}>删除</Button>
-                      </div>
-                    )}
-
-                    {hasMultiple && isExpanded && (
-                      <div className="mt-4 space-y-2 border-t border-border/40 pt-3">
-                        {detailRecords.map((record) => (
-                          <div key={record.id} className="flex items-center justify-between gap-3 text-xs">
-                            <div className="min-w-0 truncate text-muted-foreground">
-                              {record.purchasedAt.slice(0, 10)}{' '}
-                              {record.quantity < 0
-                                ? '卖出'
-                                : record.quantity === 0 && (record.dividends ?? 0) > 0
-                                  ? (record.note === '赎回' ? '赎回' : '分红')
-                                  : record.quantity === 0
-                                    ? '买入（已清仓）'
-                                    : '买入'}
-                            </div>
-                            <div className="shrink-0 font-mono text-white">
-                              {record.quantity < 0
-                                ? `-${formatQty(Math.abs(record.quantity), record.category)}`
-                                : record.quantity === 0 && (record.dividends ?? 0) > 0
-                                  ? `+${formatMoney(record.dividends, record.currency)}`
-                                  : formatQty(record.quantity, record.category)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* 表格 */}
-            <div className="hidden rounded-xl border border-border/50 bg-card shadow md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {COLUMNS.map((col) => (
-                      <TableHead
-                        key={col.key}
-                        className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
-                        onClick={() => handleSort(col.key)}
-                      >
-                        {col.label}
-                        <SortIcon active={sortKey === col.key} dir={sortDir} />
-                      </TableHead>
-                    ))}
-                    {canEdit && <TableHead className="text-right">操作</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {subgroup.groups.map((group) => {
-                    const isClosed = group.openLots.length === 0
-                    const isPositive = group.totalPnL >= 0
-                    const isAnnPositive = (group.annReturn ?? 0) >= 0
-                    const pnlColor = isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
-                    const annColor = isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
-                    const totalRecords = group.allRecords.length
-                    const hasMultiple = totalRecords > 1
-                    const isExpanded = expanded.has(group.symbol)
-                    const showAllDetailRows = showAllDetails.has(group.symbol)
-                    const detailRecords = [...group.allRecords].sort((a, b) => {
-                      const dateCompare = b.purchasedAt.localeCompare(a.purchasedAt)
-                      return dateCompare !== 0 ? dateCompare : b.id.localeCompare(a.id)
-                    })
-                    const visibleDetailRecords = showAllDetailRows
-                      ? detailRecords
-                      : detailRecords.slice(0, DETAIL_PREVIEW_LIMIT)
-                    const hiddenDetailCount = Math.max(detailRecords.length - visibleDetailRecords.length, 0)
-                    const detailColSpan = canEdit ? COLUMNS.length + 1 : COLUMNS.length
-                    const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
-
-                    // 已清仓标的：计算已实现盈亏
-                    const realizedPnL = isClosed
-                      ? group.sellRecords.reduce((s, r) => s + (r.currentPrice - r.costBasis) * Math.abs(r.quantity), 0)
-                      : 0
-                    const isRealizedPositive = realizedPnL >= 0
-
-                    return (
-                      <Fragment key={group.symbol}>
-                        {/* 合并行 */}
-                        <TableRow
-                          key={group.symbol}
-                          className={`${hasMultiple ? 'cursor-pointer hover:bg-muted/50' : ''} ${isClosed ? 'opacity-60' : ''}`}
-                          onClick={hasMultiple ? () => toggleExpand(group.symbol) : undefined}
-                        >
-                          <TableCell className="font-medium text-white">
-                            <div className="flex items-center gap-1.5">
-                              {hasMultiple && (
-                                isExpanded
-                                  ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                  : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              )}
-                              {group.symbol}
-                              {isClosed && (
-                                <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                  已清仓
-                                </span>
-                              )}
-                              {hasMultiple && (
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                  {(() => {
-                                    const buyCount = group.allRecords.filter((a) => a.quantity >= 0 && (a.dividends ?? 0) === 0).length
-                                    return buyCount > 0 ? `${buyCount}买` : ''
-                                  })()}
-                                  {group.sellRecords.length > 0 && ` ${group.sellRecords.length}卖`}
-                                  {group.dividendRecords.length > 0 && ` ${group.dividendRecords.length}息`}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {CATEGORY_LABELS[group.category as AssetCategory]}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatMoney(group.totalCost, group.currency)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatQty(group.totalQuantity, group.category)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : formatMoney(group.currentPrice, group.currency)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {isClosed ? '—' : (
-                              <div>
-                                {formatMoney(group.totalMV, group.currency)}
-                                {group.currency !== 'CNY' && (
+                      return (
+                        <div key={group.symbol} className={`rounded-xl border border-border/50 bg-card p-4 ${isClosed ? 'opacity-70' : ''}`}>
+                          <button type="button" className="w-full text-left" onClick={() => toggleExpand(group.symbol)}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  {isExpanded
+                                    ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                                  <div className="truncate font-medium text-white">{group.symbol}</div>
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{CATEGORY_LABELS[group.category as AssetCategory]}</span>
+                                  <span>{group.allRecords.length} 条记录</span>
+                                  {isClosed && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">已清仓</span>}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-mono text-lg text-white">
+                                  {isClosed ? '—' : formatMoney(group.totalMV, group.currency)}
+                                </div>
+                                {!isClosed && group.currency !== 'CNY' && (
                                   <div className="text-[10px] text-muted-foreground">
                                     ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
                                   </div>
                                 )}
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-muted-foreground">
-                            {groupKey === 'gold'
-                              ? '—'
-                              : group.totalDividends > 0
-                                ? formatMoney(group.totalDividends, group.currency)
-                                : '—'
-                            }
-                          </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed ? (isRealizedPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : pnlColor}`}>
-                            {isClosed
-                              ? <><span className="mr-1 text-[10px] text-muted-foreground">已实现</span>{isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, group.currency)}</>
-                              : (
-                                <div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <div className="text-muted-foreground">盈亏</div>
+                                <div className={`mt-1 font-mono ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                                   {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
-                                  {group.currency !== 'CNY' && (
-                                    <div className="text-[10px] text-muted-foreground">
-                                      ≈ {toCNY(group.totalPnL, group.currency, rates) >= 0 ? '+' : ''}{formatMoney(toCNY(group.totalPnL, group.currency, rates), 'CNY')}
-                                    </div>
-                                  )}
+                                  {groupPnlRate !== null && <span className="ml-1 text-[11px]">/ {formatPercent(groupPnlRate)}</span>}
                                 </div>
-                              )
-                            }
-                          </TableCell>
-                          <TableCell className={`text-right font-mono ${isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
-                            {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                            {isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays)}
-                          </TableCell>
-                          {canEdit && (
-                            <TableCell className="text-right">
-                              {!hasMultiple && !isClosed && (
-                                <div className="flex justify-end gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={(e) => { e.stopPropagation(); handleEdit(group.openLots[0]) }}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-[#22c55e] hover:text-[#22c55e]"
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(group.openLots[0]) }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                              </div>
+                              <div>
+                                <div className="text-muted-foreground">年化 / 持有</div>
+                                <div className="mt-1 font-mono text-white">
+                                  {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null
+                                    ? '—'
+                                    : `${formatPercent(group.annReturn)} / ${formatHoldingDays(group.holdingDays)}`}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-4 space-y-4 border-t border-border/40 pt-4">
+                              <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <div className="text-muted-foreground">数量</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatQty(group.totalQuantity, group.category)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground">买入金额</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.totalCost, group.currency)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground">成本价</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground">现价</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.currentPrice, group.currency)}</div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="text-xs font-medium text-white">最近交易</div>
+                                {visibleRecords.map((record) => (
+                                  <div key={record.id} className="flex items-center justify-between gap-3 text-xs">
+                                    <div className="min-w-0 truncate text-muted-foreground">
+                                      {record.purchasedAt.slice(0, 10)} {recordLabel(record)}
+                                    </div>
+                                    <div className="shrink-0 font-mono text-white">{recordValue(record)}</div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {canEdit && group.openLots[0] && (
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => handleEdit(group.openLots[0])}>编辑</Button>
+                                  <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => handleDeleteClick(group.openLots[0])}>删除</Button>
                                 </div>
                               )}
-                            </TableCell>
+                            </div>
                           )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="hidden rounded-xl border border-border/50 bg-card shadow md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {COLUMNS.map((col) => (
+                            <TableHead
+                              key={col.key}
+                              className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
+                              onClick={() => handleSort(col.key)}
+                            >
+                              {col.label}
+                              <SortIcon active={sortKey === col.key} dir={sortDir} />
+                            </TableHead>
+                          ))}
                         </TableRow>
-
-                        {/* 展开明细 */}
-                        {hasMultiple && isExpanded && visibleDetailRecords.map((record) => {
-                          const isSell = record.quantity < 0
-                          const isDividend = record.quantity === 0 && (record.dividends ?? 0) > 0
-                          const isConsumed = record.quantity === 0 && (record.dividends ?? 0) === 0
-
-                          if (isDividend) {
-                            // 分红记录
-                            return (
-                              <TableRow key={record.id} className="bg-amber-500/5">
-                                <TableCell className="pl-10 text-sm">
-                                  <span className="border-l-2 border-amber-500/50 pl-2 text-amber-500/80">
-                                    {record.purchasedAt.slice(0, 10)} {record.note === '赎回' ? '赎回' : '分红'}
-                                  </span>
-                                  {record.note && (
-                                    <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
-                                      {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
-                                    </span>
-                                  )}
-                                </TableCell>
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell className="text-right font-mono text-sm text-amber-500/80">
-                                  +{formatMoney(record.dividends, record.currency)}
-                                </TableCell>
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                {canEdit && (
-                                  <TableCell className="text-right">
-                                    <div className="flex justify-end gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-[#22c55e] hover:text-[#22c55e]"
-                                        onClick={() => handleDeleteClick(record)}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            )
-                          }
-
-                          if (isConsumed) {
-                            // 已被卖出消耗的买入记录 (qty=0, div=0)
-                            return (
-                              <TableRow key={record.id} className="bg-muted/10 opacity-50">
-                                <TableCell className="pl-10 text-sm">
-                                  <span className="border-l-2 border-muted-foreground/30 pl-2 text-muted-foreground">
-                                    {record.purchasedAt.slice(0, 10)} 买入（已清仓）
-                                  </span>
-                                  {record.note && (
-                                    <span className="ml-2 text-xs text-muted-foreground/40" title={record.note}>
-                                      {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
-                                    </span>
-                                  )}
-                                </TableCell>
-                                <TableCell />
-                                <TableCell />
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  0
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {formatMoney(record.costBasis, record.currency)}
-                                </TableCell>
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                <TableCell />
-                                {canEdit && <TableCell />}
-                              </TableRow>
-                            )
-                          }
-
-                          if (isSell) {
-                            // 卖出记录：costBasis=买入成本, currentPrice=卖出价
-                            const qty = Math.abs(record.quantity)
-                            const realizedPnL = (record.currentPrice - record.costBasis) * qty
-                            const isRealizedPositive = realizedPnL >= 0
-
-                            return (
-                              <TableRow key={record.id} className="bg-red-500/5">
-                                <TableCell className="pl-10 text-sm">
-                                  <span className="border-l-2 border-[#22c55e]/50 pl-2 text-[#22c55e]/80">
-                                    {record.purchasedAt.slice(0, 10)} 卖出
-                                  </span>
-                                  {record.note && (
-                                    <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
-                                      {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
-                                    </span>
-                                  )}
-                                </TableCell>
-                                <TableCell />
-                                <TableCell />
-                                <TableCell className="text-right font-mono text-sm text-[#22c55e]/70">
-                                  -{formatQty(qty, record.category)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {formatMoney(record.costBasis, record.currency)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {formatMoney(record.currentPrice, record.currency)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  —
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  —
-                                </TableCell>
-                                <TableCell className={`text-right font-mono text-sm ${isRealizedPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                  {isRealizedPositive ? '+' : ''}{formatMoney(realizedPnL, record.currency)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  —
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  —
-                                </TableCell>
-                                {canEdit && (
-                                  <TableCell className="text-right">
-                                    <div className="flex justify-end gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => handleEdit(record)}
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-[#22c55e] hover:text-[#22c55e]"
-                                        onClick={() => handleDeleteClick(record)}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            )
-                          }
-
-                          // 买入记录
-                          const lotCost = costValue(record)
-                          const lotMV = marketValue(record)
-                          const lotPnL = pnlValue(record)
-                          const lotAnn = annualizedReturnIfReady(record)
-                          const lotPositive = lotPnL >= 0
-                          const lotAnnPositive = (lotAnn ?? 0) >= 0
-                          const hideLotAnnualizedAndHolding = isCashLikeCurrencyAsset(record)
+                      </TableHeader>
+                      <TableBody>
+                        {subgroup.groups.map((group) => {
+                          const isClosed = group.openLots.length === 0
+                          const isPositive = group.totalPnL >= 0
+                          const isAnnPositive = (group.annReturn ?? 0) >= 0
+                          const groupPnlRate = pnlRate(group)
+                          const pnlColor = isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
+                          const annColor = isAnnPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'
+                          const isExpanded = expanded.has(group.symbol)
+                          const showAllDetailRows = showAllDetails.has(group.symbol)
+                          const detailRecords = [...group.allRecords].sort((a, b) => {
+                            const dateCompare = b.purchasedAt.localeCompare(a.purchasedAt)
+                            return dateCompare !== 0 ? dateCompare : b.id.localeCompare(a.id)
+                          })
+                          const visibleDetailRecords = showAllDetailRows ? detailRecords : detailRecords.slice(0, DETAIL_PREVIEW_LIMIT)
+                          const hiddenDetailCount = Math.max(detailRecords.length - visibleDetailRecords.length, 0)
+                          const hideAnnualizedAndHolding = isCashLikeCurrencyAsset(group)
 
                           return (
-                            <TableRow key={record.id} className="bg-muted/20">
-                              <TableCell className="pl-10 text-sm text-muted-foreground">
-                                <span className="border-l-2 border-[#ef4444]/50 pl-2">
-                                  {record.purchasedAt.slice(0, 10)} 买入
-                                </span>
-                                {record.note && (
-                                  <span className="ml-2 text-xs text-muted-foreground/60" title={record.note}>
-                                    {record.note.length > 20 ? `${record.note.slice(0, 20)}…` : record.note}
-                                  </span>
-                                )}
-                              </TableCell>
-                              <TableCell />
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatMoney(lotCost, record.currency)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatQty(record.quantity, record.category)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatMoney(record.costBasis, record.currency)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatMoney(record.currentPrice, record.currency)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {formatMoney(lotMV, record.currency)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                —
-                              </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${lotPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                {lotPositive ? '+' : ''}
-                                {formatMoney(lotPnL, record.currency)}
-                              </TableCell>
-                              <TableCell className={`text-right font-mono text-sm ${groupKey === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? 'text-muted-foreground' : lotAnnPositive ? 'text-[#ef4444]/70' : 'text-[#22c55e]/70'}`}>
-                                {groupKey === 'gold' || hideLotAnnualizedAndHolding || lotAnn === null ? '—' : formatPercent(lotAnn)}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                {hideLotAnnualizedAndHolding ? '—' : formatHoldingDays(holdingDays(record))}
-                              </TableCell>
-                              {canEdit && (
-                                <TableCell className="text-right">
-                                  <div className="flex justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7"
-                                      onClick={() => handleEdit(record)}
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 text-[#22c55e] hover:text-[#22c55e]"
-                                      onClick={() => handleDeleteClick(record)}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
+                            <Fragment key={group.symbol}>
+                              <TableRow
+                                className={`cursor-pointer hover:bg-muted/50 ${isClosed ? 'opacity-60' : ''}`}
+                                onClick={() => toggleExpand(group.symbol)}
+                              >
+                                <TableCell className="font-medium text-white">
+                                  <div className="flex items-center gap-2">
+                                    {isExpanded
+                                      ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                      : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span>{group.symbol}</span>
+                                        {isClosed && (
+                                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                            已清仓
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="mt-1 text-xs text-muted-foreground">
+                                        {CATEGORY_LABELS[group.category as AssetCategory]} · {group.allRecords.length} 条记录
+                                      </div>
+                                    </div>
                                   </div>
                                 </TableCell>
+                                <TableCell className="text-right font-mono text-white">
+                                  {isClosed ? '—' : (
+                                    <div>
+                                      {formatMoney(group.totalMV, group.currency)}
+                                      {group.currency !== 'CNY' && (
+                                        <div className="text-[10px] text-muted-foreground">
+                                          ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className={`text-right font-mono ${pnlColor}`}>
+                                  <div>
+                                    {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
+                                    <div className="text-[10px] text-muted-foreground">
+                                      {groupPnlRate === null ? '—' : formatPercent(groupPnlRate)}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className={`text-right font-mono ${isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
+                                  {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                  {isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays)}
+                                </TableCell>
+                              </TableRow>
+
+                              {isExpanded && (
+                                <TableRow className="bg-muted/10">
+                                  <TableCell colSpan={COLUMNS.length} className="p-0">
+                                    <div className="space-y-4 px-5 py-4">
+                                      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+                                        <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                          <div className="text-xs text-muted-foreground">数量</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatQty(group.totalQuantity, group.category)}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                          <div className="text-xs text-muted-foreground">买入金额</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatMoney(group.totalCost, group.currency)}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                          <div className="text-xs text-muted-foreground">成本价</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                          <div className="text-xs text-muted-foreground">现价</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatMoney(group.currentPrice, group.currency)}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                          <div className="text-xs text-muted-foreground">分红累计</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{group.totalDividends > 0 ? formatMoney(group.totalDividends, group.currency) : '—'}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                          <div className="text-xs text-muted-foreground">币种</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{group.currency}</div>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="text-sm font-medium text-white">交易明细</div>
+                                        {canEdit && group.openLots[0] && (
+                                          <div className="flex gap-1">
+                                            <Button variant="ghost" size="sm" onClick={() => handleEdit(group.openLots[0])}>
+                                              <Pencil className="mr-1 h-3.5 w-3.5" />
+                                              编辑
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => handleDeleteClick(group.openLots[0])}>
+                                              <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                              删除
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        {visibleDetailRecords.map((record) => (
+                                          <div key={record.id} className="flex items-center justify-between gap-4 rounded-lg border border-border/30 bg-background/25 px-3 py-2 text-xs">
+                                            <div className="min-w-0 truncate text-muted-foreground">
+                                              {record.purchasedAt.slice(0, 10)} {recordLabel(record)}
+                                              {record.note && <span className="ml-2 text-muted-foreground/70">{record.note}</span>}
+                                            </div>
+                                            <div className="shrink-0 font-mono text-white">{recordValue(record)}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+
+                                      {detailRecords.length > DETAIL_PREVIEW_LIMIT && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs text-muted-foreground hover:text-white"
+                                          onClick={() => toggleShowAllDetails(group.symbol)}
+                                        >
+                                          {showAllDetailRows
+                                            ? `收起到最近 ${DETAIL_PREVIEW_LIMIT} 条`
+                                            : `显示全部 ${detailRecords.length} 条（还有 ${hiddenDetailCount} 条）`}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
                               )}
-                            </TableRow>
+                            </Fragment>
                           )
                         })}
-                        {hasMultiple && isExpanded && detailRecords.length > DETAIL_PREVIEW_LIMIT && (
-                          <TableRow className="bg-muted/10">
-                            <TableCell colSpan={detailColSpan} className="py-2 pl-10">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-white"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  toggleShowAllDetails(group.symbol)
-                                }}
-                              >
-                                {showAllDetailRows
-                                  ? `收起到最近 ${DETAIL_PREVIEW_LIMIT} 条`
-                                  : `显示全部 ${detailRecords.length} 条（还有 ${hiddenDetailCount} 条）`}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               )
             })}

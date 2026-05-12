@@ -3,11 +3,11 @@ import Foundation
 /// 派生计算，与 Web 前端 calc.ts 逻辑一致
 enum Calc {
     static func marketValue(_ asset: Asset) -> Double {
-        asset.currentPrice * asset.quantity
+        asset.currentPrice * asset.quantity * multiplier(asset)
     }
 
     static func costValue(_ asset: Asset) -> Double {
-        asset.costBasis * asset.quantity
+        asset.costBasis * asset.quantity * multiplier(asset)
     }
 
     static func pnlValue(_ asset: Asset) -> Double {
@@ -30,5 +30,9 @@ enum Calc {
 
     static func totalPnLValue(_ assets: [Asset]) -> Double {
         totalMarketValue(assets) - totalCostValue(assets)
+    }
+
+    private static func multiplier(_ asset: Asset) -> Double {
+        asset.category == .option ? max(asset.contractMultiplier ?? 1, 1) : 1
     }
 }

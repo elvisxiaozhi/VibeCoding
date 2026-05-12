@@ -154,7 +154,7 @@ export function calculateReturnAttribution(
     const costCNY = costValue(asset) * purchase.rate
     const marketValueCNY = marketValue(asset) * currentRate
     const priceReturnCNY = (asset.currentPrice - asset.costBasis) * asset.quantity * purchase.rate
-    const fxReturnCNY = asset.currentPrice * asset.quantity * (currentRate - purchase.rate)
+    const fxReturnCNY = marketValue(asset) * (currentRate - purchase.rate)
     const unrealizedReturnCNY = priceReturnCNY + fxReturnCNY
 
     addAssetAttribution(asset, {

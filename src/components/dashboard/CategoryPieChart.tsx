@@ -12,6 +12,7 @@ const COLORS: Record<string, string> = {
   cash: '#22c55e',
   currency: '#06b6d4',
   provident_fund: '#f97316',
+  option: '#ec4899',
 }
 
 interface CategoryPieChartProps {

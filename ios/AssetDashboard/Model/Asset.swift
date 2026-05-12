@@ -1,7 +1,7 @@
 import Foundation
 
 enum AssetCategory: String, Codable, CaseIterable {
-    case stock, etf, gold, crypto, cash, currency, providentFund = "provident_fund"
+    case stock, etf, gold, crypto, cash, currency, providentFund = "provident_fund", option
 
     var label: String {
         switch self {
@@ -12,6 +12,7 @@ enum AssetCategory: String, Codable, CaseIterable {
         case .cash:   return "现金"
         case .currency: return "货币"
         case .providentFund: return "公积金"
+        case .option: return "期权"
         }
     }
 }
@@ -24,6 +25,7 @@ struct Asset: Codable, Identifiable {
     var currentPrice: Double
     var quantity: Double
     var currency: String
+    var contractMultiplier: Double?
     let createdAt: String
     let updatedAt: String
 }

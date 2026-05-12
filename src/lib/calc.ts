@@ -3,14 +3,18 @@ import { CATEGORY_ORDER } from '@/lib/types'
 
 export const MIN_ANNUALIZED_HOLDING_DAYS = 90
 
-/** 单条资产市值 = 现价 × 数量 */
-export function marketValue(asset: Asset): number {
-  return asset.currentPrice * asset.quantity
+export function contractMultiplier(asset: Asset): number {
+  return asset.category === 'option' ? ((asset.contractMultiplier ?? 1) > 0 ? asset.contractMultiplier ?? 1 : 1) : 1
 }
 
-/** 单条资产成本 = 成本价 × 数量 */
+/** 单条资产市值 = 现价 × 数量 × 合约乘数（仅期权） */
+export function marketValue(asset: Asset): number {
+  return asset.currentPrice * asset.quantity * contractMultiplier(asset)
+}
+
+/** 单条资产成本 = 成本价 × 数量 × 合约乘数（仅期权） */
 export function costValue(asset: Asset): number {
-  return asset.costBasis * asset.quantity
+  return asset.costBasis * asset.quantity * contractMultiplier(asset)
 }
 
 /** 单条资产分红 */
@@ -230,7 +234,7 @@ export function holdingsXIRR(
     const rate = getRate(a.currency, date)
     if (rate <= 0) continue
     cashflows.push({
-      amount: -(a.costBasis * a.quantity) * rate,
+      amount: -costValue(a) * rate,
       date,
     })
   }
@@ -256,7 +260,7 @@ export function holdingsXIRR(
       const rate = getRate(a.currency, date)
       if (rate <= 0) continue
       cashflows.push({
-        amount: -(a.costBasis * origQty) * rate,
+        amount: -(a.costBasis * origQty * contractMultiplier(a)) * rate,
         date,
       })
     }
@@ -265,7 +269,7 @@ export function holdingsXIRR(
       const rate = getRate(a.currency, date)
       if (rate <= 0) continue
       cashflows.push({
-        amount: a.currentPrice * Math.abs(a.quantity) * rate,
+        amount: a.currentPrice * Math.abs(a.quantity) * contractMultiplier(a) * rate,
         date,
       })
     }
@@ -277,7 +281,7 @@ export function holdingsXIRR(
   for (const a of buyLots) {
     const rate = getRate(a.currency, today)
     if (rate <= 0) continue
-    totalMV_CNY += a.currentPrice * a.quantity * rate
+    totalMV_CNY += marketValue(a) * rate
   }
   if (totalMV_CNY > 0) {
     cashflows.push({

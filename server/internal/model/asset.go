@@ -11,6 +11,7 @@ const (
 	CategoryCash          AssetCategory = "cash"
 	CategoryCurrency      AssetCategory = "currency"
 	CategoryProvidentFund AssetCategory = "provident_fund"
+	CategoryOption        AssetCategory = "option"
 )
 
 // MarketType 所属市场/板块
@@ -25,19 +26,24 @@ const (
 
 // Asset 单条资产记录，JSON tag 与前端 Asset interface 一一对应
 type Asset struct {
-	ID           string  `json:"id"`
-	UserID       string  `json:"-"`
-	Symbol       string  `json:"symbol"`
-	Category     string  `json:"category"`
-	Market       string  `json:"market"`
-	CostBasis    float64 `json:"costBasis"`
-	CurrentPrice float64 `json:"currentPrice"`
-	Quantity     float64 `json:"quantity"`
-	Currency     string  `json:"currency"`
-	Dividends    float64 `json:"dividends"`
-	Owner        string  `json:"owner"`
-	Note         string  `json:"note"`
-	PurchasedAt  string  `json:"purchasedAt"`
-	CreatedAt    string  `json:"createdAt"`
-	UpdatedAt    string  `json:"updatedAt"`
+	ID                 string  `json:"id"`
+	UserID             string  `json:"-"`
+	Symbol             string  `json:"symbol"`
+	Category           string  `json:"category"`
+	Market             string  `json:"market"`
+	CostBasis          float64 `json:"costBasis"`
+	CurrentPrice       float64 `json:"currentPrice"`
+	Quantity           float64 `json:"quantity"`
+	Currency           string  `json:"currency"`
+	Dividends          float64 `json:"dividends"`
+	Owner              string  `json:"owner"`
+	Note               string  `json:"note"`
+	OptionType         string  `json:"optionType"`
+	UnderlyingSymbol   string  `json:"underlyingSymbol"`
+	StrikePrice        float64 `json:"strikePrice"`
+	ExpiryDate         string  `json:"expiryDate"`
+	ContractMultiplier float64 `json:"contractMultiplier"`
+	PurchasedAt        string  `json:"purchasedAt"`
+	CreatedAt          string  `json:"createdAt"`
+	UpdatedAt          string  `json:"updatedAt"`
 }
