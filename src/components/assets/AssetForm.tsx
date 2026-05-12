@@ -83,6 +83,7 @@ export function AssetForm({
 
   const isCurrency = form.category === 'currency'
   const isOption = form.category === 'option'
+  const isBalanceAsset = form.category === 'cash' || form.category === 'currency' || form.category === 'provident_fund'
 
   // 打开弹窗时：编辑模式预填充，新增模式重置
   useEffect(() => {
@@ -115,9 +116,9 @@ export function AssetForm({
   function validate(): boolean {
     const e: FormErrors = {}
     if (!isOption && !form.symbol.trim()) e.symbol = isCurrency ? '请选择货币' : '请输入资产代码/名称'
-    if (form.costBasis <= 0) e.costBasis = isCurrency ? '买入汇率必须大于 0' : '成本价必须大于 0'
-    if (form.currentPrice <= 0) e.currentPrice = isCurrency ? '当前汇率必须大于 0' : '现价必须大于 0'
-    if (form.quantity <= 0) e.quantity = '数量必须大于 0'
+    if (!isBalanceAsset && form.costBasis <= 0) e.costBasis = '成本价必须大于 0'
+    if (!isBalanceAsset && form.currentPrice <= 0) e.currentPrice = '现价必须大于 0'
+    if (form.quantity <= 0) e.quantity = isBalanceAsset ? '余额必须大于 0' : '数量必须大于 0'
     if (isOption && !form.underlyingSymbol.trim()) e.underlyingSymbol = '请输入期权标的'
     if (isOption && form.strikePrice <= 0) e.strikePrice = '行权价必须大于 0'
     if (isOption && !form.expiryDate) e.expiryDate = '请选择到期日'
@@ -131,6 +132,8 @@ export function AssetForm({
     if (!validate()) return
     onSubmit({
       ...form,
+      costBasis: isBalanceAsset && form.costBasis <= 0 ? 1 : form.costBasis,
+      currentPrice: isBalanceAsset && form.currentPrice <= 0 ? 1 : form.currentPrice,
       symbol: isOption
         ? `${form.underlyingSymbol.trim()} ${form.expiryDate} ${form.optionType === 'put' ? 'P' : 'C'} ${form.strikePrice}`
         : form.symbol,
@@ -166,6 +169,14 @@ export function AssetForm({
         currency: prev.market === 'hk' ? 'HKD' : 'USD',
         optionType: prev.optionType || 'call',
         contractMultiplier: prev.contractMultiplier > 1 ? prev.contractMultiplier : 100,
+      }))
+    }
+    if (cat === 'cash' || cat === 'currency' || cat === 'provident_fund') {
+      setForm((prev) => ({
+        ...prev,
+        category: cat,
+        costBasis: prev.costBasis > 0 ? prev.costBasis : 1,
+        currentPrice: prev.currentPrice > 0 ? prev.currentPrice : 1,
       }))
     }
   }
@@ -242,7 +253,9 @@ export function AssetForm({
 
           {/* 代码/名称 或 货币选择 */}
           <div className="space-y-2">
-            <Label htmlFor="symbol">{isCurrency ? '货币' : isOption ? '合约名称' : '资产代码/名称'}</Label>
+            <Label htmlFor="symbol">
+              {isCurrency ? '货币' : isOption ? '合约名称' : form.category === 'provident_fund' ? '账户名称' : form.category === 'cash' ? '现金账户名称' : '资产代码/名称'}
+            </Label>
             {isCurrency ? (
               <select
                 id="symbol"
@@ -325,47 +338,54 @@ export function AssetForm({
             </div>
           )}
 
-          {/* 成本价/买入汇率 + 现价/当前汇率 */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="costBasis">{isCurrency ? '买入汇率' : '成本价'}</Label>
-              <Input
-                id="costBasis"
-                type="number"
-                step="any"
-                min="0"
-                placeholder="0.00"
-                value={form.costBasis || ''}
-                onChange={(e) =>
-                  setField('costBasis', parseFloat(e.target.value) || 0)
-                }
-              />
-              {errors.costBasis ? (
-                <p className="text-xs text-[#ef4444]">{errors.costBasis}</p>
-              ) : null}
+          {!isBalanceAsset && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="costBasis">成本价</Label>
+                <Input
+                  id="costBasis"
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="0.00"
+                  value={form.costBasis || ''}
+                  onChange={(e) =>
+                    setField('costBasis', parseFloat(e.target.value) || 0)
+                  }
+                />
+                {errors.costBasis ? (
+                  <p className="text-xs text-[#ef4444]">{errors.costBasis}</p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currentPrice">现价</Label>
+                <Input
+                  id="currentPrice"
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="0.00"
+                  value={form.currentPrice || ''}
+                  onChange={(e) =>
+                    setField('currentPrice', parseFloat(e.target.value) || 0)
+                  }
+                />
+                {errors.currentPrice ? (
+                  <p className="text-xs text-[#ef4444]">{errors.currentPrice}</p>
+                ) : null}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="currentPrice">{isCurrency ? '当前汇率' : '现价'}</Label>
-              <Input
-                id="currentPrice"
-                type="number"
-                step="any"
-                min="0"
-                placeholder="0.00"
-                value={form.currentPrice || ''}
-                onChange={(e) =>
-                  setField('currentPrice', parseFloat(e.target.value) || 0)
-                }
-              />
-              {errors.currentPrice ? (
-                <p className="text-xs text-[#ef4444]">{errors.currentPrice}</p>
-              ) : null}
+          )}
+
+          {isBalanceAsset && (
+            <div className="rounded-lg border border-border/40 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+              现金和公积金按账户余额管理，不显示成本价、现价和收益率字段。
             </div>
-          </div>
+          )}
 
           {/* 数量 */}
           <div className="space-y-2">
-            <Label htmlFor="quantity">{isCurrency ? '持有数量' : '数量'}</Label>
+            <Label htmlFor="quantity">{isBalanceAsset ? '账户余额' : '数量'}</Label>
             <Input
               id="quantity"
               type="number"
@@ -382,9 +402,9 @@ export function AssetForm({
             ) : null}
           </div>
 
-          {/* 买入日期 */}
+          {/* 买入日期 / 记录日期 */}
           <div className="space-y-2">
-            <Label htmlFor="purchasedAt">买入日期</Label>
+            <Label htmlFor="purchasedAt">{isBalanceAsset ? '记录日期' : '买入日期'}</Label>
             <Input
               id="purchasedAt"
               type="date"

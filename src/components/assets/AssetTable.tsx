@@ -43,7 +43,7 @@ import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory, type AssetSubcategory } from '@/lib/assetClassification'
 import { costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
-import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
+import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER, OWNER_LABELS, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
 
 type SortKey =
   | 'symbol'
@@ -114,6 +114,15 @@ interface DisplayGroup {
   subgroups: SubcategoryGroup[]
 }
 
+interface BalanceAssetPanelProps {
+  title: string
+  groups: SymbolGroup[]
+  rates: ReturnType<typeof useExchangeRates>['rates']
+  canEdit: boolean
+  onEdit: (asset: Asset) => void
+  onDelete: (asset: Asset) => void
+}
+
 function formatPercent(n: number): string {
   return `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`
 }
@@ -143,6 +152,101 @@ function recordValue(record: Asset): string {
     return `+${formatMoney(record.dividends ?? 0, record.currency)}`
   }
   return formatQty(record.quantity, record.category)
+}
+
+function representativeAsset(group: SymbolGroup): Asset | undefined {
+  return group.openLots[0] ?? group.sellRecords[0] ?? group.dividendRecords[0] ?? group.allRecords[0]
+}
+
+function balanceOwners(group: SymbolGroup): string {
+  const owners = new Set(group.allRecords.map((record) => record.owner))
+  return [...owners]
+    .map((owner) => OWNER_LABELS[owner as OwnerType] ?? owner)
+    .join(' / ')
+}
+
+function BalanceAssetPanel({
+  title,
+  groups,
+  rates,
+  canEdit,
+  onEdit,
+  onDelete,
+}: BalanceAssetPanelProps) {
+  const totalCNY = groups.reduce((sum, group) => sum + toCNY(group.totalMV, group.currency, rates), 0)
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <div className="text-xs text-muted-foreground">
+          合计 <span className="font-mono text-white">{formatMoney(totalCNY, 'CNY')}</span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        {groups.map((group) => {
+          const asset = representativeAsset(group)
+          const updatedAt = asset?.updatedAt?.slice(0, 10) ?? '—'
+          const recordCount = group.allRecords.length
+
+          return (
+            <div key={group.symbol} className="rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-white">{group.symbol}</div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{balanceOwners(group)}</span>
+                    <span>{group.currency}</span>
+                    <span>{recordCount} 条记录</span>
+                  </div>
+                </div>
+                <div className="text-left sm:text-right">
+                  <div className="text-xs text-muted-foreground">当前余额</div>
+                  <div className="mt-1 font-mono text-2xl text-white">
+                    {formatMoney(group.totalMV, group.currency)}
+                  </div>
+                  {group.currency !== 'CNY' && (
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+                <div className="rounded-lg border border-border/30 bg-background/35 p-3">
+                  <div className="text-muted-foreground">账户类型</div>
+                  <div className="mt-1 text-sm text-white">{CATEGORY_LABELS[group.category as AssetCategory]}</div>
+                </div>
+                <div className="rounded-lg border border-border/30 bg-background/35 p-3">
+                  <div className="text-muted-foreground">记录数</div>
+                  <div className="mt-1 font-mono text-sm text-white">{recordCount}</div>
+                </div>
+                <div className="rounded-lg border border-border/30 bg-background/35 p-3">
+                  <div className="text-muted-foreground">最近更新</div>
+                  <div className="mt-1 font-mono text-sm text-white">{updatedAt}</div>
+                </div>
+              </div>
+
+              {asset?.note && (
+                <div className="mt-3 rounded-lg border border-border/30 bg-background/25 px-3 py-2 text-xs text-muted-foreground">
+                  {asset.note}
+                </div>
+              )}
+
+              {canEdit && asset && (
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => onEdit(asset)}>编辑</Button>
+                  <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => onDelete(asset)}>删除</Button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function getGroupSortValue(group: SymbolGroup, key: SortKey): number | string {
@@ -500,6 +604,20 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
           {/* 按板块分组的表格 */}
           {groupedByDisplay.map(({ key: groupKey, label: groupLabel, groups: symbolGroups, subgroups }) => {
+        if (groupKey === 'cash' || groupKey === 'provident_fund') {
+          return (
+            <BalanceAssetPanel
+              key={groupKey}
+              title={groupLabel}
+              groups={symbolGroups}
+              rates={rates}
+              canEdit={canEdit}
+              onEdit={handleEdit}
+              onDelete={handleDeleteClick}
+            />
+          )
+        }
+
         const allOpenLots = symbolGroups.flatMap((g) => g.openLots)
         const groupMVCNY = allOpenLots.reduce((s, a) => s + toCNY(marketValue(a), a.currency, rates), 0)
         const groupCostCNY = allOpenLots.reduce((s, a) => s + toCNY(costValue(a), a.currency, rates), 0)
