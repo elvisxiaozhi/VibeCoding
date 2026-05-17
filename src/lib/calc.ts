@@ -312,6 +312,47 @@ export interface CategoryBreakdownItem {
   ratio: number
 }
 
+/**
+ * 从 currentValue 以 annualRate 年化复利增长（可叠加每月追加 monthlyContribution）
+ * 到 targetValue 所需年数；返回 null 表示 300 年内无法达成
+ */
+export function yearsToGoal(
+  currentValue: number,
+  targetValue: number,
+  annualRate: number,
+  monthlyContribution = 0,
+): number | null {
+  if (currentValue >= targetValue) return 0
+  if (annualRate <= -1) return null
+  if (monthlyContribution <= 0 && annualRate <= 0) return null
+
+  const monthlyRate = Math.pow(Math.max(1 + annualRate, 1e-10), 1 / 12) - 1
+
+  function fv(n: number): number {
+    const g = Math.pow(1 + monthlyRate, n)
+    let v = currentValue * g
+    if (monthlyContribution > 0) {
+      v += Math.abs(monthlyRate) < 1e-10
+        ? monthlyContribution * n
+        : monthlyContribution * (g - 1) / monthlyRate
+    }
+    return v
+  }
+
+  const maxMonths = 12 * 300
+  if (fv(maxMonths) < targetValue) return null
+
+  let lo = 0
+  let hi = maxMonths
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (fv(mid) >= targetValue) hi = mid
+    else lo = mid
+    if (hi - lo < 0.1) break
+  }
+  return hi / 12
+}
+
 /** 按分类汇总市值及占比，始终返回全部 4 个分类（顺序固定） */
 export function categoryBreakdown(assets: Asset[]): CategoryBreakdownItem[] {
   const total = totalMarketValue(assets)

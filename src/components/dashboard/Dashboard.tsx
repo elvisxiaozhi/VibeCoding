@@ -10,6 +10,7 @@ import {
 import { useState } from 'react'
 
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
+import { FireGoalPanel } from '@/components/dashboard/FireGoalPanel'
 import { PerformancePanel, type PerformanceSummary } from '@/components/dashboard/PerformancePanel'
 import { PortfolioSnapshotPanel } from '@/components/dashboard/PortfolioSnapshotPanel'
 import { PriceRefreshCenter } from '@/components/dashboard/PriceRefreshCenter'
@@ -398,6 +399,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           variant={annReturn === null ? 'default' : annVariant}
         />
       </div>
+
+      <FireGoalPanel netWorthCNY={netWorthCNY} annReturn={annReturn} />
 
       <div className="rounded-xl border border-border/50 bg-card px-4 py-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
