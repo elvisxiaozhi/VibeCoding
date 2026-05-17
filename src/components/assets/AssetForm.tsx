@@ -118,7 +118,8 @@ export function AssetForm({
     if (!isOption && !form.symbol.trim()) e.symbol = isCurrency ? '请选择货币' : '请输入资产代码/名称'
     if (!isBalanceAsset && form.costBasis <= 0) e.costBasis = '成本价必须大于 0'
     if (!isBalanceAsset && form.currentPrice <= 0) e.currentPrice = '现价必须大于 0'
-    if (form.quantity <= 0) e.quantity = isBalanceAsset ? '余额必须大于 0' : '数量必须大于 0'
+    if (isOption && form.quantity === 0) e.quantity = '合约数量不能为 0'
+    if (!isOption && form.quantity <= 0) e.quantity = isBalanceAsset ? '余额必须大于 0' : '数量必须大于 0'
     if (isOption && !form.underlyingSymbol.trim()) e.underlyingSymbol = '请输入期权标的'
     if (isOption && form.strikePrice <= 0) e.strikePrice = '行权价必须大于 0'
     if (isOption && !form.expiryDate) e.expiryDate = '请选择到期日'
@@ -385,12 +386,12 @@ export function AssetForm({
 
           {/* 数量 */}
           <div className="space-y-2">
-            <Label htmlFor="quantity">{isBalanceAsset ? '账户余额' : '数量'}</Label>
+            <Label htmlFor="quantity">{isBalanceAsset ? '账户余额' : isOption ? '合约数量' : '数量'}</Label>
             <Input
               id="quantity"
               type="number"
               step="any"
-              min="0"
+              min={isOption ? undefined : '0'}
               placeholder="0"
               value={form.quantity || ''}
               onChange={(e) =>

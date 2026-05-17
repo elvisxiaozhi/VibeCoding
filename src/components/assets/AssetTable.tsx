@@ -99,6 +99,8 @@ interface SymbolGroup {
   firstBuyDate: string
   /** 持有天数：今天 - firstBuyDate；已清仓为 0 */
   holdingDays: number
+  /** 期权到期日（category === 'option' 时从代表 lot 读取） */
+  expiryDate?: string
 }
 
 interface SubcategoryGroup {
@@ -152,6 +154,10 @@ function recordValue(record: Asset): string {
     return `+${formatMoney(record.dividends ?? 0, record.currency)}`
   }
   return formatQty(record.quantity, record.category)
+}
+
+function isOpenPositionRecord(asset: Asset): boolean {
+  return asset.quantity > 0 || (asset.category === 'option' && asset.quantity < 0 && (asset.note ?? '').includes('sell-to-open'))
 }
 
 function representativeAsset(group: SymbolGroup): Asset | undefined {
@@ -325,8 +331,8 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     // 按日期排序
     allRecords.sort((a, b) => a.purchasedAt.localeCompare(b.purchasedAt))
 
-    const openLots = allRecords.filter((a) => a.quantity > 0)
-    const sellRecords = allRecords.filter((a) => a.quantity < 0)
+    const openLots = allRecords.filter(isOpenPositionRecord)
+    const sellRecords = allRecords.filter((a) => a.quantity < 0 && !isOpenPositionRecord(a))
     const dividendRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0 && a.note !== '赎回')
     const redemptionRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0 && a.note === '赎回')
 
@@ -371,6 +377,7 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
       annReturn,
       firstBuyDate,
       holdingDays: groupHoldingDays,
+      expiryDate: representative?.expiryDate ?? undefined,
     })
   }
   return groups
@@ -746,11 +753,15 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 </div>
                               </div>
                               <div>
-                                <div className="text-muted-foreground">年化 / 持有</div>
-                                <div className="mt-1 font-mono text-white">
-                                  {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null
-                                    ? '—'
-                                    : `${formatPercent(group.annReturn)} / ${formatHoldingDays(group.holdingDays)}`}
+                                <div className="text-muted-foreground">
+                                  {group.category === 'option' ? '累计 / 到期' : '年化 / 持有'}
+                                </div>
+                                <div className={`mt-1 font-mono ${group.category === 'option' ? (isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : 'text-white'}`}>
+                                  {group.category === 'option' && !isClosed
+                                    ? `${groupPnlRate !== null ? formatPercent(groupPnlRate) : '—'} / ${group.expiryDate ? group.expiryDate.slice(0, 10) : '无到期日'}`
+                                    : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null
+                                        ? '—'
+                                        : `${formatPercent(group.annReturn)} / ${formatHoldingDays(group.holdingDays)}`)}
                                 </div>
                               </div>
                             </div>
@@ -882,11 +893,15 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                     </div>
                                   </div>
                                 </TableCell>
-                                <TableCell className={`text-right font-mono ${isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor}`}>
-                                  {isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn)}
+                                <TableCell className={`text-right font-mono ${group.category === 'option' && !isClosed ? pnlColor : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor)}`}>
+                                  {group.category === 'option' && !isClosed
+                                    ? (groupPnlRate !== null ? <span>{formatPercent(groupPnlRate)}<span className="ml-1 text-[10px] text-muted-foreground">累计</span></span> : '—')
+                                    : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn))}
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays)}
+                                  {group.category === 'option' && !isClosed
+                                    ? (group.expiryDate ? group.expiryDate.slice(0, 10) : '—')
+                                    : (isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays))}
                                 </TableCell>
                               </TableRow>
 

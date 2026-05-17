@@ -17,7 +17,7 @@
   · 后端字段变 → 前后端 Asset 类型 + calc.ts 三处同步
 ```
 
-外部数据源：实时行情（`handler/quotes.go`）、汇率（`handler/fx_rates.go`）、定时刷新（`handler/price_refresh.go`）。已部署至腾讯云 62.234.19.227。
+外部数据源：实时行情（`handler/quotes.go`）、汇率（`handler/fx_rates.go`）、定时刷新（`handler/price_refresh.go`）。已部署至 159.203.56.165。
 
 ## 技术栈（严格约束，不得替换）
 - **前端**：Vite + React + TypeScript + Tailwind CSS v3 + Shadcn UI（手动安装，Default 风格 / Slate / CSS Variables）+ lucide-react + Recharts（Step 7 起引入）
