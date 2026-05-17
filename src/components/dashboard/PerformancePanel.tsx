@@ -35,6 +35,7 @@ interface PerformancePanelProps {
   attribution: ReturnAttribution
   historicalRatesLoading: boolean
   summaries: PerformanceSummary[]
+  onSymbolClick?: (symbol: string) => void
 }
 
 const GROUP_OPTIONS: AttributionGroupBy[] = ['asset', 'category', 'currency', 'market']
@@ -110,6 +111,7 @@ export function PerformancePanel({
   attribution,
   historicalRatesLoading,
   summaries,
+  onSymbolClick,
 }: PerformancePanelProps) {
   const [groupBy, setGroupBy] = useState<AttributionGroupBy>('asset')
   const [rankingMode, setRankingMode] = useState<RankingMode>('pnl')
@@ -227,7 +229,11 @@ export function PerformancePanel({
               return (
                 <div
                   key={`${rankingMode}-${item.symbol}`}
-                  className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/30 px-3 py-2.5"
+                  className={cn(
+                    'flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/30 px-3 py-2.5',
+                    onSymbolClick && 'cursor-pointer hover:border-border/60 hover:bg-white/5 transition-colors',
+                  )}
+                  onClick={() => onSymbolClick?.(item.symbol)}
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-white">{item.symbol}</p>

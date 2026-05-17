@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
+import { AssetDetailSheet } from '@/components/dashboard/AssetDetailSheet'
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
 import { FireGoalPanel } from '@/components/dashboard/FireGoalPanel'
 import { PerformancePanel, type PerformanceSummary } from '@/components/dashboard/PerformancePanel'
@@ -105,6 +106,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
   const [includeProvidentFund, setIncludeProvidentFund] = useState(false)
   const [includeGold, setIncludeGold] = useState(true)
+  const [detailSymbol, setDetailSymbol] = useState<string | null>(null)
   const { rates, loading: ratesLoading } = useExchangeRates()
   const dashboardAssets = assets.filter((a) => {
     if (!includeProvidentFund && a.category === 'provident_fund') return false
@@ -530,9 +532,22 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         attribution={returnAttribution}
         historicalRatesLoading={histLoading}
         summaries={symbolSummaries}
+        onSymbolClick={setDetailSymbol}
       />
 
       <RiskExposurePanel risk={riskExposure} />
+
+      <AssetDetailSheet
+        symbol={detailSymbol}
+        open={detailSymbol !== null}
+        onClose={() => setDetailSymbol(null)}
+        holdings={holdings}
+        divRecords={divRecords}
+        consumedRecords={consumedRecords}
+        sellRecords={sellRecords}
+        summaries={symbolSummaries}
+        rates={rates}
+      />
     </div>
   )
 }
