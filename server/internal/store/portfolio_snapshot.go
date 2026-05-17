@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/theodore/vibecoding-server/internal/model"
 )
@@ -17,21 +18,22 @@ func (s *Store) UpsertPortfolioSnapshot(snapshot model.PortfolioSnapshot) error 
 	_, err = tx.Exec(`
 		INSERT INTO portfolio_snapshots (
 			id, user_id, snapshot_date, total_value_cny, total_cost_cny, total_pnl_cny,
-			total_dividend_cny, asset_count, rates_json, assets_json, created_at, updated_at
+			total_dividend_cny, total_liability_cny, asset_count, rates_json, assets_json, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, snapshot_date) DO UPDATE SET
 			total_value_cny = excluded.total_value_cny,
 			total_cost_cny = excluded.total_cost_cny,
 			total_pnl_cny = excluded.total_pnl_cny,
 			total_dividend_cny = excluded.total_dividend_cny,
+			total_liability_cny = excluded.total_liability_cny,
 			asset_count = excluded.asset_count,
 			rates_json = excluded.rates_json,
 			assets_json = excluded.assets_json,
 			updated_at = excluded.updated_at
 	`, snapshot.ID, snapshot.UserID, snapshot.SnapshotDate, snapshot.TotalValueCNY,
 		snapshot.TotalCostCNY, snapshot.TotalPnLCNY, snapshot.TotalDividendCNY,
-		snapshot.AssetCount, snapshot.RatesJSON, snapshot.AssetsJSON,
+		snapshot.TotalLiabilityCNY, snapshot.AssetCount, snapshot.RatesJSON, snapshot.AssetsJSON,
 		snapshot.CreatedAt, snapshot.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upsert portfolio snapshot: %w", err)
@@ -65,7 +67,7 @@ func (s *Store) UpsertPortfolioSnapshot(snapshot model.PortfolioSnapshot) error 
 func (s *Store) ListPortfolioSnapshots(userID, from, to string) ([]model.PortfolioSnapshot, error) {
 	query := `
 		SELECT id, user_id, snapshot_date, total_value_cny, total_cost_cny, total_pnl_cny,
-			total_dividend_cny, asset_count, rates_json, assets_json, created_at, updated_at
+			total_dividend_cny, total_liability_cny, asset_count, rates_json, assets_json, created_at, updated_at
 		FROM portfolio_snapshots
 		WHERE user_id = ?
 	`
@@ -87,30 +89,65 @@ func (s *Store) ListPortfolioSnapshots(userID, from, to string) ([]model.Portfol
 	defer rows.Close()
 
 	var snapshots []model.PortfolioSnapshot
+	idIndex := map[string]int{}
 	for rows.Next() {
 		var snapshot model.PortfolioSnapshot
 		if err := scanPortfolioSnapshot(rows, &snapshot); err != nil {
 			return nil, err
 		}
+		idIndex[snapshot.ID] = len(snapshots)
 		snapshots = append(snapshots, snapshot)
 	}
-	return snapshots, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(snapshots) == 0 {
+		return snapshots, nil
+	}
+
+	// Fetch all breakdowns in one query
+	ids := make([]string, len(snapshots))
+	for i, sn := range snapshots {
+		ids[i] = sn.ID
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	bArgs := make([]any, len(ids))
+	for i, id := range ids {
+		bArgs[i] = id
+	}
+	bRows, err := s.db.Query(fmt.Sprintf(`
+		SELECT snapshot_id, dimension, key, label, value_cny, cost_cny, pnl_cny, ratio
+		FROM portfolio_snapshot_breakdowns
+		WHERE snapshot_id IN (%s)
+		ORDER BY dimension, value_cny DESC
+	`, placeholders), bArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("list snapshot breakdowns: %w", err)
+	}
+	defer bRows.Close()
+	for bRows.Next() {
+		var snapshotID string
+		var item model.PortfolioSnapshotBreakdown
+		if err := bRows.Scan(&snapshotID, &item.Dimension, &item.Key, &item.Label, &item.ValueCNY, &item.CostCNY, &item.PnLCNY, &item.Ratio); err != nil {
+			return nil, fmt.Errorf("scan snapshot breakdown: %w", err)
+		}
+		if idx, ok := idIndex[snapshotID]; ok {
+			snapshots[idx].Breakdowns = append(snapshots[idx].Breakdowns, item)
+		}
+	}
+	return snapshots, bRows.Err()
 }
 
 func (s *Store) GetPortfolioSnapshot(userID, snapshotDate string) (model.PortfolioSnapshot, error) {
 	var snapshot model.PortfolioSnapshot
 	row := s.db.QueryRow(`
 		SELECT id, user_id, snapshot_date, total_value_cny, total_cost_cny, total_pnl_cny,
-			total_dividend_cny, asset_count, rates_json, assets_json, created_at, updated_at
+			total_dividend_cny, total_liability_cny, asset_count, rates_json, assets_json, created_at, updated_at
 		FROM portfolio_snapshots
 		WHERE user_id = ? AND snapshot_date = ?
 	`, userID, snapshotDate)
-	if err := row.Scan(
-		&snapshot.ID, &snapshot.UserID, &snapshot.SnapshotDate, &snapshot.TotalValueCNY,
-		&snapshot.TotalCostCNY, &snapshot.TotalPnLCNY, &snapshot.TotalDividendCNY,
-		&snapshot.AssetCount, &snapshot.RatesJSON, &snapshot.AssetsJSON,
-		&snapshot.CreatedAt, &snapshot.UpdatedAt,
-	); err != nil {
+	if err := scanPortfolioSnapshot(row, &snapshot); err != nil {
 		return snapshot, fmt.Errorf("get portfolio snapshot: %w", err)
 	}
 
@@ -153,7 +190,7 @@ func scanPortfolioSnapshot(row portfolioSnapshotScanner, snapshot *model.Portfol
 	if err := row.Scan(
 		&snapshot.ID, &snapshot.UserID, &snapshot.SnapshotDate, &snapshot.TotalValueCNY,
 		&snapshot.TotalCostCNY, &snapshot.TotalPnLCNY, &snapshot.TotalDividendCNY,
-		&snapshot.AssetCount, &snapshot.RatesJSON, &snapshot.AssetsJSON,
+		&snapshot.TotalLiabilityCNY, &snapshot.AssetCount, &snapshot.RatesJSON, &snapshot.AssetsJSON,
 		&snapshot.CreatedAt, &snapshot.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {

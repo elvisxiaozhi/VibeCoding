@@ -19,8 +19,9 @@ type PortfolioSnapshots struct {
 }
 
 type snapshotRequest struct {
-	SnapshotDate string             `json:"snapshotDate"`
-	Rates        map[string]float64 `json:"rates"`
+	SnapshotDate      string             `json:"snapshotDate"`
+	Rates             map[string]float64 `json:"rates"`
+	TotalLiabilityCNY float64            `json:"totalLiabilityCNY"`
 }
 
 type snapshotResponse struct {
@@ -94,7 +95,7 @@ func (h *PortfolioSnapshots) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshot, err := buildSnapshot(userID, req.SnapshotDate, assets, req.Rates)
+	snapshot, err := buildSnapshot(userID, req.SnapshotDate, assets, req.Rates, req.TotalLiabilityCNY)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -111,7 +112,7 @@ func (h *PortfolioSnapshots) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, snapshotToResponse(stored))
 }
 
-func buildSnapshot(userID, snapshotDate string, assets []model.Asset, rates map[string]float64) (model.PortfolioSnapshot, error) {
+func buildSnapshot(userID, snapshotDate string, assets []model.Asset, rates map[string]float64, totalLiabilityCNY float64) (model.PortfolioSnapshot, error) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	assetsJSON, err := json.Marshal(assets)
 	if err != nil {
@@ -159,19 +160,20 @@ func buildSnapshot(userID, snapshotDate string, assets []model.Asset, rates map[
 	breakdowns = append(breakdowns, snapshotBreakdowns("owner", ownerBuckets, totalValueCNY)...)
 
 	return model.PortfolioSnapshot{
-		ID:               uuid.NewString(),
-		UserID:           userID,
-		SnapshotDate:     snapshotDate,
-		TotalValueCNY:    totalValueCNY,
-		TotalCostCNY:     totalCostCNY,
-		TotalPnLCNY:      totalPnLCNY,
-		TotalDividendCNY: totalDividendCNY,
-		AssetCount:       holdingCount,
-		RatesJSON:        string(ratesJSON),
-		AssetsJSON:       string(assetsJSON),
-		Breakdowns:       breakdowns,
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		ID:                uuid.NewString(),
+		UserID:            userID,
+		SnapshotDate:      snapshotDate,
+		TotalValueCNY:     totalValueCNY,
+		TotalCostCNY:      totalCostCNY,
+		TotalPnLCNY:       totalPnLCNY,
+		TotalDividendCNY:  totalDividendCNY,
+		TotalLiabilityCNY: totalLiabilityCNY,
+		AssetCount:        holdingCount,
+		RatesJSON:         string(ratesJSON),
+		AssetsJSON:        string(assetsJSON),
+		Breakdowns:        breakdowns,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}, nil
 }
 

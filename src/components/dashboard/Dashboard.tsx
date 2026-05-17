@@ -119,6 +119,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     refreshAll: refreshAllPrices,
     refreshOne: refreshOnePrice,
   } = usePriceRefresh(isLoggedIn, refetch)
+  // 计算负债总额（CNY），需在快照 hook 之前以便自动快照包含负债数据
+  const totalLiabilityCNYForSnapshot = liabilities.reduce((s, l) => s + toCNY(l.principal, l.currency, rates), 0)
   const {
     snapshots,
     selectedSnapshot,
@@ -126,7 +128,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     creating: snapshotCreating,
     createTodaySnapshot,
     selectSnapshot,
-  } = usePortfolioSnapshots(isLoggedIn, rates, ratesLoading)
+  } = usePortfolioSnapshots(isLoggedIn, rates, ratesLoading, totalLiabilityCNYForSnapshot, liabilitiesLoading)
 
   // 只统计持仓（qty > 0），排除卖出和分红记录
   const holdings = dashboardAssets.filter((a) => a.quantity > 0)

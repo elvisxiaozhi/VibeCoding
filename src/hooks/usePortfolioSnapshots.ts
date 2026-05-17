@@ -13,7 +13,13 @@ let selectedSnapshotCache: PortfolioSnapshot | null = null
 // "打开 Dashboard 时自动建快照" 在整个会话内只跑一次，避免切回 Dashboard 反复建
 let createdTodayThisSession = false
 
-export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates, ratesLoading: boolean) {
+export function usePortfolioSnapshots(
+  isLoggedIn: boolean,
+  rates: ExchangeRates,
+  ratesLoading: boolean,
+  totalLiabilityCNY = 0,
+  liabilitiesLoading = false,
+) {
   const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>(() => snapshotsCache ?? [])
   const [selectedSnapshot, setSelectedSnapshot] = useState<PortfolioSnapshot | null>(() => selectedSnapshotCache)
   const [loading, setLoading] = useState(() => isLoggedIn && snapshotsCache === null)
@@ -67,11 +73,12 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
         body: JSON.stringify({
           snapshotDate: todayKey(),
           rates,
+          totalLiabilityCNY,
         }),
       })
       if (!res.ok) throw new Error(`create snapshot failed: ${res.status}`)
       const snapshot = (await res.json()) as PortfolioSnapshot
-      snapshotsCache = null // 列表会变化，强制下次 fetch 重新拉
+      snapshotsCache = null
       await fetchSnapshots()
       selectedSnapshotCache = snapshot
       setSelectedSnapshot(snapshot)
@@ -80,7 +87,7 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
     } finally {
       setCreating(false)
     }
-  }, [fetchSnapshots, isLoggedIn, rates, ratesLoading])
+  }, [fetchSnapshots, isLoggedIn, rates, ratesLoading, totalLiabilityCNY])
 
   const selectSnapshot = useCallback(async (snapshotDate: string) => {
     if (!isLoggedIn) return
@@ -103,10 +110,10 @@ export function usePortfolioSnapshots(isLoggedIn: boolean, rates: ExchangeRates,
   }, [fetchSnapshots])
 
   useEffect(() => {
-    if (!isLoggedIn || ratesLoading || createdTodayThisSession) return
+    if (!isLoggedIn || ratesLoading || liabilitiesLoading || createdTodayThisSession) return
     createdTodayThisSession = true
     void createTodaySnapshot()
-  }, [createTodaySnapshot, isLoggedIn, ratesLoading])
+  }, [createTodaySnapshot, isLoggedIn, liabilitiesLoading, ratesLoading])
 
   return {
     snapshots,

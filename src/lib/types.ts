@@ -149,6 +149,7 @@ export interface PortfolioSnapshot {
   totalCostCNY: number
   totalPnLCNY: number
   totalDividendCNY: number
+  totalLiabilityCNY: number
   assetCount: number
   breakdowns?: PortfolioSnapshotBreakdown[]
   assets?: Asset[]
