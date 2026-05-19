@@ -11,6 +11,7 @@ import { useState } from 'react'
 
 import { AssetDetailSheet } from '@/components/dashboard/AssetDetailSheet'
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
+import { DividendIncomePanel } from '@/components/dashboard/DividendIncomePanel'
 import { FireGoalPanel } from '@/components/dashboard/FireGoalPanel'
 import { PerformancePanel, type PerformanceSummary } from '@/components/dashboard/PerformancePanel'
 import { PortfolioSnapshotPanel } from '@/components/dashboard/PortfolioSnapshotPanel'
@@ -536,6 +537,12 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       />
 
       <RiskExposurePanel risk={riskExposure} />
+
+      <DividendIncomePanel
+        divRecords={divRecords}
+        holdings={holdings}
+        rates={rates}
+      />
 
       <AssetDetailSheet
         symbol={detailSymbol}
