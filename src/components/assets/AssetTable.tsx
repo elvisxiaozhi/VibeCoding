@@ -22,6 +22,8 @@ import {
 import { AssetForm, type AssetFormData } from '@/components/assets/AssetForm'
 import { ClearedAssetsTable } from '@/components/assets/ClearedAssetsTable'
 import { LiabilityTable } from '@/components/assets/LiabilityTable'
+import { AssetDetailSheet } from '@/components/dashboard/AssetDetailSheet'
+import type { PerformanceSummary } from '@/components/dashboard/PerformancePanel'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -439,6 +441,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     return new Set<SortKey>()
   })
   const [colSettingsOpen, setColSettingsOpen] = useState(false)
+  const [detailSymbol, setDetailSymbol] = useState<string | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   // 展开状态：记录已展开的 symbol
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -525,6 +529,39 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
       try { localStorage.setItem('assetTableHiddenCols', JSON.stringify([...next])) } catch { /**/ }
       return next
     })
+  }
+
+  const sheetHoldings = useMemo(() => assets.filter(isOpenPositionRecord), [assets])
+  const sheetDivRecords = useMemo(
+    () => assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0),
+    [assets],
+  )
+  const sheetConsumedRecords = useMemo(
+    () => assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')),
+    [assets],
+  )
+  const sheetSellRecords = useMemo(
+    () => assets.filter((a) => a.quantity < 0 && !isOpenPositionRecord(a)),
+    [assets],
+  )
+  const sheetSummaries = useMemo<PerformanceSummary[]>(
+    () =>
+      groupedByDisplay.flatMap((g) => g.groups).map((g) => ({
+        symbol: g.symbol,
+        category: g.category,
+        currency: g.currency,
+        totalPnL: g.totalPnL,
+        totalPnLCNY: toCNY(g.totalPnL, g.currency, rates),
+        pnlRate: g.totalCost > 0 ? g.totalPnL / g.totalCost : 0,
+        annReturn: g.annReturn,
+      })),
+    [groupedByDisplay, rates],
+  )
+
+  function handleSymbolClick(e: React.MouseEvent, symbol: string) {
+    e.stopPropagation()
+    setDetailSymbol(symbol)
+    setDetailOpen(true)
   }
 
   function handleSort(key: SortKey) {
@@ -894,7 +931,15 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   {isExpanded
                                     ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                                     : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                                  <div className="truncate font-medium text-white">{group.symbol}</div>
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => handleSymbolClick(e, group.symbol)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSymbolClick(e as unknown as React.MouseEvent, group.symbol)}
+                                    className="truncate font-medium text-white hover:underline"
+                                  >
+                                    {group.symbol}
+                                  </span>
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                   <span>{CATEGORY_LABELS[group.category as AssetCategory]}</span>
@@ -1030,7 +1075,13 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                       : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-2">
-                                        <span>{group.symbol}</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleSymbolClick(e, group.symbol)}
+                                          className="text-white hover:underline"
+                                        >
+                                          {group.symbol}
+                                        </button>
                                         {isClosed && (
                                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                             已清仓
@@ -1207,6 +1258,19 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* 标的详情抽屉 */}
+      <AssetDetailSheet
+        symbol={detailSymbol}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        holdings={sheetHoldings}
+        divRecords={sheetDivRecords}
+        consumedRecords={sheetConsumedRecords}
+        sellRecords={sheetSellRecords}
+        summaries={sheetSummaries}
+        rates={rates}
+      />
     </div>
   )
 }
