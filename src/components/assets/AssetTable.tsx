@@ -4,15 +4,19 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Check,
   ChevronDown,
   ChevronRight,
   Eye,
+  Filter,
   Loader2,
   Lock,
   Pencil,
   Plus,
+  Search,
   Trash2,
   Wallet,
+  X,
 } from 'lucide-react'
 
 import { AssetForm, type AssetFormData } from '@/components/assets/AssetForm'
@@ -29,6 +33,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -43,7 +48,7 @@ import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory, type AssetSubcategory } from '@/lib/assetClassification'
 import { costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { formatMoney, toCNY } from '@/lib/currency'
-import { CATEGORY_LABELS, MARKET_LABELS, MARKET_ORDER, OWNER_LABELS, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER, OWNER_LABELS, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
 
 type SortKey =
   | 'symbol'
@@ -424,6 +429,17 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
   const [viewMode, setViewMode] = useState<'holding' | 'cleared' | 'liabilities'>('holding')
 
+  const [search, setSearch] = useState('')
+  const [categoryFilters, setCategoryFilters] = useState<Set<AssetCategory>>(new Set())
+  const [hiddenCols, setHiddenCols] = useState<Set<SortKey>>(() => {
+    try {
+      const saved = localStorage.getItem('assetTableHiddenCols')
+      if (saved) return new Set(JSON.parse(saved) as SortKey[])
+    } catch { /**/ }
+    return new Set<SortKey>()
+  })
+  const [colSettingsOpen, setColSettingsOpen] = useState(false)
+
   // 展开状态：记录已展开的 symbol
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [showAllDetails, setShowAllDetails] = useState<Set<string>>(new Set())
@@ -450,10 +466,18 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
       else groupMap.set(group, [a])
     }
 
+    const lowerSearch = search.toLowerCase()
+
     return groupOrder
       .filter((key) => (groupMap.get(key)?.length ?? 0) > 0)
       .map((key) => {
-        const symbolGroups = sortSymbolGroups(groupBySymbol(groupMap.get(key)!), sortKey, sortDir)
+        let symbolGroups = sortSymbolGroups(groupBySymbol(groupMap.get(key)!), sortKey, sortDir)
+        if (lowerSearch) {
+          symbolGroups = symbolGroups.filter((g) => g.symbol.toLowerCase().includes(lowerSearch))
+        }
+        if (categoryFilters.size > 0) {
+          symbolGroups = symbolGroups.filter((g) => categoryFilters.has(g.category))
+        }
         return {
           key,
           label: DISPLAY_GROUP_LABELS[key],
@@ -461,7 +485,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
           subgroups: groupBySubcategory(symbolGroups, sortKey, sortDir),
         }
       })
-  }, [assets, sortKey, sortDir])
+      .filter((g) => g.groups.length > 0)
+  }, [assets, sortKey, sortDir, search, categoryFilters])
 
   function toggleExpand(symbol: string) {
     setExpanded((prev) => {
@@ -477,6 +502,27 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
       const next = new Set(prev)
       if (next.has(symbol)) next.delete(symbol)
       else next.add(symbol)
+      return next
+    })
+  }
+
+  const availableCategories = useMemo<AssetCategory[]>(() => {
+    const cats = new Set<AssetCategory>()
+    for (const a of assets) cats.add(a.category)
+    return CATEGORY_ORDER.filter((c) => cats.has(c))
+  }, [assets])
+
+  const visibleColumns = useMemo(
+    () => COLUMNS.filter((c) => c.key === 'symbol' || !hiddenCols.has(c.key)),
+    [hiddenCols],
+  )
+
+  function toggleHiddenCol(key: SortKey) {
+    setHiddenCols((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      try { localStorage.setItem('assetTableHiddenCols', JSON.stringify([...next])) } catch { /**/ }
       return next
     })
   }
@@ -600,12 +646,136 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
       {viewMode === 'holding' && (
         <>
+          {/* 搜索 + 分类过滤 + 列设置工具栏 */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索标的..."
+                className="h-8 w-40 pl-8 text-sm"
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                  onClick={() => setSearch('')}
+                >
+                  <X className="h-3.5 w-3.5 text-muted-foreground hover:text-white" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {availableCategories.map((cat) => {
+                const active = categoryFilters.has(cat)
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() =>
+                      setCategoryFilters((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(cat)) next.delete(cat)
+                        else next.add(cat)
+                        return next
+                      })
+                    }
+                    className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
+                      active
+                        ? 'bg-white/15 text-white ring-1 ring-white/20'
+                        : 'bg-muted/30 text-muted-foreground hover:text-white'
+                    }`}
+                  >
+                    {CATEGORY_LABELS[cat]}
+                  </button>
+                )
+              })}
+              {categoryFilters.size > 0 && (
+                <button
+                  type="button"
+                  className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground hover:text-white"
+                  onClick={() => setCategoryFilters(new Set())}
+                >
+                  <X className="h-3 w-3" />
+                  清除
+                </button>
+              )}
+            </div>
+
+            <div className="relative ml-auto">
+              {colSettingsOpen && (
+                <div className="fixed inset-0 z-[5]" onClick={() => setColSettingsOpen(false)} />
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative z-[6] h-8 gap-1.5 text-xs text-muted-foreground"
+                onClick={() => setColSettingsOpen((v) => !v)}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                列
+              </Button>
+              {colSettingsOpen && (
+                <div className="absolute right-0 top-9 z-[6] min-w-[140px] rounded-xl border border-border/50 bg-card p-3 shadow-lg">
+                  <div className="mb-2 text-xs font-medium text-white">显示列</div>
+                  <div className="space-y-1">
+                    {COLUMNS.filter((c) => c.key !== 'symbol').map((col) => {
+                      const hidden = hiddenCols.has(col.key)
+                      return (
+                        <button
+                          key={col.key}
+                          type="button"
+                          onClick={() => toggleHiddenCol(col.key)}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-muted/40"
+                        >
+                          <div
+                            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                              !hidden ? 'border-white/40 bg-white/10' : 'border-border/60'
+                            }`}
+                          >
+                            {!hidden && <Check className="h-2.5 w-2.5 text-white" />}
+                          </div>
+                          <span className={hidden ? 'text-muted-foreground' : 'text-white'}>
+                            {col.label}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {hiddenCols.size > 0 && (
+                    <button
+                      type="button"
+                      className="mt-2 w-full rounded-md px-2 py-1 text-center text-xs text-muted-foreground hover:text-white"
+                      onClick={() => {
+                        setHiddenCols(new Set())
+                        try { localStorage.removeItem('assetTableHiddenCols') } catch { /**/ }
+                        setColSettingsOpen(false)
+                      }}
+                    >
+                      恢复默认
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {canEdit && (
             <div className="flex justify-end">
               <Button onClick={handleAdd}>
                 <Plus className="mr-2 h-4 w-4" />
                 新增资产
               </Button>
+            </div>
+          )}
+
+          {/* 过滤无结果时的空状态 */}
+          {groupedByDisplay.length === 0 && (search || categoryFilters.size > 0) && (
+            <div className="flex h-32 flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-card">
+              <Search className="h-7 w-7 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">没有找到匹配的标的</p>
             </div>
           )}
 
@@ -817,7 +987,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          {COLUMNS.map((col) => (
+                          {visibleColumns.map((col) => (
                             <TableHead
                               key={col.key}
                               className={`cursor-pointer select-none ${col.align === 'right' ? 'text-right' : ''}`}
@@ -873,41 +1043,49 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                     </div>
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-right font-mono text-white">
-                                  {isClosed ? '—' : (
+                                {!hiddenCols.has('marketValue') && (
+                                  <TableCell className="text-right font-mono text-white">
+                                    {isClosed ? '—' : (
+                                      <div>
+                                        {formatMoney(group.totalMV, group.currency)}
+                                        {group.currency !== 'CNY' && (
+                                          <div className="text-[10px] text-muted-foreground">
+                                            ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {!hiddenCols.has('pnl') && (
+                                  <TableCell className={`text-right font-mono ${pnlColor}`}>
                                     <div>
-                                      {formatMoney(group.totalMV, group.currency)}
-                                      {group.currency !== 'CNY' && (
-                                        <div className="text-[10px] text-muted-foreground">
-                                          ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
-                                        </div>
-                                      )}
+                                      {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {groupPnlRate === null ? '—' : formatPercent(groupPnlRate)}
+                                      </div>
                                     </div>
-                                  )}
-                                </TableCell>
-                                <TableCell className={`text-right font-mono ${pnlColor}`}>
-                                  <div>
-                                    {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
-                                    <div className="text-[10px] text-muted-foreground">
-                                      {groupPnlRate === null ? '—' : formatPercent(groupPnlRate)}
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell className={`text-right font-mono ${group.category === 'option' && !isClosed ? pnlColor : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor)}`}>
-                                  {group.category === 'option' && !isClosed
-                                    ? (groupPnlRate !== null ? <span>{formatPercent(groupPnlRate)}<span className="ml-1 text-[10px] text-muted-foreground">累计</span></span> : '—')
-                                    : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn))}
-                                </TableCell>
-                                <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                                  {group.category === 'option' && !isClosed
-                                    ? (group.expiryDate ? group.expiryDate.slice(0, 10) : '—')
-                                    : (isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays))}
-                                </TableCell>
+                                  </TableCell>
+                                )}
+                                {!hiddenCols.has('annualized') && (
+                                  <TableCell className={`text-right font-mono ${group.category === 'option' && !isClosed ? pnlColor : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? 'text-muted-foreground' : annColor)}`}>
+                                    {group.category === 'option' && !isClosed
+                                      ? (groupPnlRate !== null ? <span>{formatPercent(groupPnlRate)}<span className="ml-1 text-[10px] text-muted-foreground">累计</span></span> : '—')
+                                      : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null ? '—' : formatPercent(group.annReturn))}
+                                  </TableCell>
+                                )}
+                                {!hiddenCols.has('holdingDays') && (
+                                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                                    {group.category === 'option' && !isClosed
+                                      ? (group.expiryDate ? group.expiryDate.slice(0, 10) : '—')
+                                      : (isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays))}
+                                  </TableCell>
+                                )}
                               </TableRow>
 
                               {isExpanded && (
                                 <TableRow className="bg-muted/10">
-                                  <TableCell colSpan={COLUMNS.length} className="p-0">
+                                  <TableCell colSpan={visibleColumns.length} className="p-0">
                                     <div className="space-y-4 px-5 py-4">
                                       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">

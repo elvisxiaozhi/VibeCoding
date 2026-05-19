@@ -1,4 +1,7 @@
 export { default as ArrowDown } from 'lucide-react/dist/esm/icons/arrow-down.js'
+export { default as Check } from 'lucide-react/dist/esm/icons/check.js'
+export { default as Filter } from 'lucide-react/dist/esm/icons/filter.js'
+export { default as Search } from 'lucide-react/dist/esm/icons/search.js'
 export { default as ArrowUp } from 'lucide-react/dist/esm/icons/arrow-up.js'
 export { default as ArrowUpDown } from 'lucide-react/dist/esm/icons/arrow-up-down.js'
 export { default as AlertTriangle } from 'lucide-react/dist/esm/icons/triangle-alert.js'
