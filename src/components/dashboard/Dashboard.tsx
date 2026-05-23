@@ -26,12 +26,16 @@ import { usePriceRefresh } from '@/hooks/usePriceRefresh'
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
 import { calculateReturnAttribution } from '@/lib/attribution'
 import { contractMultiplier, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalPnLValue, xirrRate } from '@/lib/calc'
-import { formatMoney, toCNY } from '@/lib/currency'
+import { formatCompactMoney, formatMoney, toCNY } from '@/lib/currency'
 import { calculateRiskExposure } from '@/lib/risk'
 import { CURRENCY_CODES, CURRENCY_LABELS, isCashLikeCurrencyAsset, type Asset, type OwnerType } from '@/lib/types'
 
 function formatCNY(n: number): string {
   return formatMoney(n, 'CNY')
+}
+
+function formatCompactCNY(n: number): string {
+  return formatCompactMoney(n, 'CNY')
 }
 
 function formatPercent(n: number): string {
@@ -386,32 +390,37 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <StatCard
           title="总资产"
-          value={formatCNY(totalValueCNY)}
+          value={formatCompactCNY(totalValueCNY)}
+          valueTitle={formatCNY(totalValueCNY)}
           icon={Wallet}
         />
         <StatCard
           title="净资产"
-          value={formatCNY(netWorthCNY)}
+          value={formatCompactCNY(netWorthCNY)}
+          valueTitle={formatCNY(netWorthCNY)}
           subtitle={`负债率 ${(liabilityRatio * 100).toFixed(2)}%`}
           icon={DollarSign}
           variant={netWorthCNY >= 0 ? 'profit' : 'loss'}
         />
         <StatCard
           title="总负债"
-          value={formatCNY(totalLiabilityCNY)}
+          value={formatCompactCNY(totalLiabilityCNY)}
+          valueTitle={formatCNY(totalLiabilityCNY)}
           icon={TrendingDown}
           variant={totalLiabilityCNY > 0 ? 'loss' : 'default'}
         />
         <StatCard
           title="浮动盈亏"
-          value={`${totalPnLCNY >= 0 ? '+' : ''}${formatCNY(totalPnLCNY)}`}
+          value={`${totalPnLCNY >= 0 ? '+' : ''}${formatCompactCNY(totalPnLCNY)}`}
+          valueTitle={`${totalPnLCNY >= 0 ? '+' : ''}${formatCNY(totalPnLCNY)}`}
           subtitle={formatPercent(pnlPercent)}
           icon={totalPnLCNY >= 0 ? TrendingUp : TrendingDown}
           variant={pnlVariant}
         />
         <StatCard
           title="投入本金"
-          value={formatCNY(totalCostCNY)}
+          value={formatCompactCNY(totalCostCNY)}
+          valueTitle={formatCNY(totalCostCNY)}
           icon={DollarSign}
         />
         <StatCard
@@ -469,19 +478,19 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">期权市值</div>
-              <div className="mt-1 font-mono text-lg text-white">{formatCNY(optionMarketValueCNY)}</div>
+              <div className="mt-1 font-mono text-base text-white" title={formatCNY(optionMarketValueCNY)}>{formatCompactCNY(optionMarketValueCNY)}</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">权利金投入</div>
-              <div className="mt-1 font-mono text-lg text-white">{formatCNY(optionPremiumCNY)}</div>
+              <div className="mt-1 font-mono text-base text-white" title={formatCNY(optionPremiumCNY)}>{formatCompactCNY(optionPremiumCNY)}</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">期权总盈亏</div>
-              <div className={`mt-1 font-mono text-lg ${optionTotalPnLCNY >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                {optionTotalPnLCNY >= 0 ? '+' : ''}{formatCNY(optionTotalPnLCNY)}
+              <div className={`mt-1 font-mono text-base ${optionTotalPnLCNY >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`} title={`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCNY(optionTotalPnLCNY)}`}>
+                {optionTotalPnLCNY >= 0 ? '+' : ''}{formatCompactCNY(optionTotalPnLCNY)}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
                 {optionPnLRate === null ? '—' : formatPercent(optionPnLRate)}
@@ -489,12 +498,12 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">保证金占用</div>
-              <div className="mt-1 font-mono text-lg text-white">{optionMarginUSD > 0 ? formatMoney(optionMarginUSD, 'USD') : '—'}</div>
+              <div className="mt-1 font-mono text-base text-white">{optionMarginUSD > 0 ? formatCompactMoney(optionMarginUSD, 'USD') : '—'}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">从备注 margin_usd 读取</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">当前保证金收益率</div>
-              <div className={`mt-1 font-mono text-lg ${optionMarginReturn === null ? 'text-muted-foreground' : optionMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+              <div className={`mt-1 font-mono text-base ${optionMarginReturn === null ? 'text-muted-foreground' : optionMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                 {optionMarginReturn === null ? '—' : formatPercent(optionMarginReturn)}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
@@ -503,7 +512,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">到期最大保证金收益</div>
-              <div className={`mt-1 font-mono text-lg ${optionMaxMarginReturn === null ? 'text-muted-foreground' : optionMaxMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+              <div className={`mt-1 font-mono text-base ${optionMaxMarginReturn === null ? 'text-muted-foreground' : optionMaxMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                 {optionMaxMarginReturn === null ? '—' : formatPercent(optionMaxMarginReturn)}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
@@ -512,14 +521,14 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">短周期年化</div>
-              <div className={`mt-1 font-mono text-lg ${optionShortAnnualized === null ? 'text-muted-foreground' : optionShortAnnualized >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+              <div className={`mt-1 font-mono text-base ${optionShortAnnualized === null ? 'text-muted-foreground' : optionShortAnnualized >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
                 {optionShortAnnualized === null ? '—' : formatPercent(optionShortAnnualized)}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">仅供参考</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">最近到期</div>
-              <div className="mt-1 font-mono text-lg text-white">{nextOptionExpiry ?? '—'}</div>
+              <div className="mt-1 font-mono text-base text-white">{nextOptionExpiry ?? '—'}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">
                 {optionDaysToExpiry === null ? '暂无到期日' : optionDaysToExpiry >= 0 ? `剩余 ${optionDaysToExpiry} 天` : `已过期 ${Math.abs(optionDaysToExpiry)} 天`}
               </div>

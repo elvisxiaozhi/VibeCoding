@@ -23,6 +23,21 @@ export function formatMoney(amount: number, currency: string): string {
   return amount < 0 ? `-${sym}${formatted}` : `${sym}${formatted}`
 }
 
+/** 格式化金额缩写（CNY 用万/亿，USD 用 K/M） */
+export function formatCompactMoney(amount: number, currency: string): string {
+  const sym = currencySymbol(currency)
+  const abs = Math.abs(amount)
+  const sign = amount < 0 ? '-' : ''
+  if (currency === 'CNY' || currency === 'RMB') {
+    if (abs >= 1e8) return `${sign}${sym}${(abs / 1e8).toFixed(2)}亿`
+    if (abs >= 1e4) return `${sign}${sym}${(abs / 1e4).toFixed(2)}万`
+  } else {
+    if (abs >= 1e6) return `${sign}${sym}${(abs / 1e6).toFixed(2)}M`
+    if (abs >= 1e3) return `${sign}${sym}${(abs / 1e3).toFixed(1)}K`
+  }
+  return formatMoney(amount, currency)
+}
+
 /** 格式化带正号的金额 */
 export function formatMoneyWithSign(amount: number, currency: string): string {
   if (amount >= 0) return `+${formatMoney(amount, currency)}`

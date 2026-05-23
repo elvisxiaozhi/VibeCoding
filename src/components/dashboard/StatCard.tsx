@@ -4,6 +4,8 @@ import type { LucideIcon } from 'lucide-react'
 interface StatCardProps {
   title: string
   value: string
+  /** hover 时显示完整原始数值（用于缩写后保留精确值） */
+  valueTitle?: string
   subtitle?: string
   icon: LucideIcon
   variant?: 'default' | 'profit' | 'loss'
@@ -12,6 +14,7 @@ interface StatCardProps {
 export function StatCard({
   title,
   value,
+  valueTitle,
   subtitle,
   icon: Icon,
   variant = 'default',
@@ -30,7 +33,7 @@ export function StatCard({
           <p className="text-sm text-muted-foreground">{title}</p>
           <Icon className="h-4 w-4 text-muted-foreground" />
         </div>
-        <p className={`mt-2 break-words font-mono text-lg font-semibold sm:text-xl ${valueColor}`}>
+        <p title={valueTitle} className={`mt-2 break-words font-mono text-lg font-semibold sm:text-xl ${valueColor}`}>
           {value}
         </p>
         {subtitle ? (
