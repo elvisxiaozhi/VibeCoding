@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
 
@@ -47,35 +47,37 @@ function App() {
   }
 
   return (
-    <AppLayout
-      active={page}
-      onChange={setPage}
-      title={NAV_LABELS[page]}
-      user={user}
-      onLogin={login}
-      onLogout={logout}
-    >
-      {/* Owner filter tabs */}
-      {isLoggedIn && (
-        <div className="mb-4 flex w-full gap-1 overflow-x-auto rounded-md border border-border/30 bg-background/30 p-1 sm:w-fit">
-          {OWNER_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setOwnerFilter(tab.key)}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                ownerFilter === tab.key
-                  ? 'bg-foreground/10 text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
-      <PageContent page={page} isLoggedIn={isLoggedIn} ownerFilter={ownerFilter} />
-    </AppLayout>
-    <Toaster position="bottom-right" richColors />
+    <Fragment>
+      <AppLayout
+        active={page}
+        onChange={setPage}
+        title={NAV_LABELS[page]}
+        user={user}
+        onLogin={login}
+        onLogout={logout}
+      >
+        {/* Owner filter tabs */}
+        {isLoggedIn && (
+          <div className="mb-4 flex w-full gap-1 overflow-x-auto rounded-md border border-border/30 bg-background/30 p-1 sm:w-fit">
+            {OWNER_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setOwnerFilter(tab.key)}
+                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                  ownerFilter === tab.key
+                    ? 'bg-foreground/10 text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <PageContent page={page} isLoggedIn={isLoggedIn} ownerFilter={ownerFilter} />
+      </AppLayout>
+      <Toaster position="bottom-right" richColors />
+    </Fragment>
   )
 }
 
