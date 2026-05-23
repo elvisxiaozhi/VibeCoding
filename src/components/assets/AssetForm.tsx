@@ -19,7 +19,7 @@ interface AssetFormProps {
   onOpenChange: (open: boolean) => void
   /** 编辑模式时传入现有资产，新增模式传 undefined */
   asset?: Asset
-  onSubmit: (data: AssetFormData) => void
+  onSubmit: (data: AssetFormData) => Promise<boolean>
 }
 
 export interface AssetFormData {
@@ -80,6 +80,7 @@ export function AssetForm({
   const isEdit = !!asset
   const [form, setForm] = useState<AssetFormData>(EMPTY_FORM)
   const [errors, setErrors] = useState<FormErrors>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const isCurrency = form.category === 'currency'
   const isOption = form.category === 'option'
@@ -128,10 +129,11 @@ export function AssetForm({
     return Object.keys(e).length === 0
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate()) return
-    onSubmit({
+    setSubmitting(true)
+    const ok = await onSubmit({
       ...form,
       costBasis: isBalanceAsset && form.costBasis <= 0 ? 1 : form.costBasis,
       currentPrice: isBalanceAsset && form.currentPrice <= 0 ? 1 : form.currentPrice,
@@ -144,7 +146,8 @@ export function AssetForm({
       expiryDate: isOption ? form.expiryDate : '',
       contractMultiplier: isOption ? form.contractMultiplier : 1,
     })
-    onOpenChange(false)
+    setSubmitting(false)
+    if (ok) onOpenChange(false)
   }
 
   function setField<K extends keyof AssetFormData>(key: K, value: AssetFormData[K]) {
@@ -450,7 +453,9 @@ export function AssetForm({
             >
               取消
             </Button>
-            <Button type="submit">{isEdit ? '保存' : '新增'}</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? '提交中…' : isEdit ? '保存' : '新增'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

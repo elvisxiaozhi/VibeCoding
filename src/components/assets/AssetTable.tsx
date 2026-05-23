@@ -583,12 +583,12 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     setFormOpen(true)
   }
 
-  function handleFormSubmit(data: AssetFormData) {
-    if (!canEdit) return
+  async function handleFormSubmit(data: AssetFormData): Promise<boolean> {
+    if (!canEdit) return false
     if (editingAsset) {
-      updateAsset(editingAsset.id, data)
+      return updateAsset(editingAsset.id, data)
     } else {
-      addAsset(data)
+      return addAsset(data)
     }
   }
 
@@ -597,9 +597,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     setDeleteOpen(true)
   }
 
-  function handleDeleteConfirm() {
+  async function handleDeleteConfirm() {
     if (canEdit && deletingAsset) {
-      deleteAsset(deletingAsset.id)
+      await deleteAsset(deletingAsset.id)
     }
     setDeleteOpen(false)
     setDeletingAsset(undefined)

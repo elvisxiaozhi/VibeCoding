@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   categoryBreakdown,
@@ -28,6 +29,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     if (!isLoggedIn) return false
     return !assetsCache.has(cacheKey(ownerFilter))
   })
+  const [error, setError] = useState<string | null>(null)
   // 请求自增 ID，只接受最新一次 fetchAssets 的回包。
   const fetchSeqRef = useRef(0)
   // 始终指向"当前渲染的" ownerFilter，闭包过时的调用据此识别。
@@ -57,21 +59,26 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
       const params = ownerFilter ? `?owner=${ownerFilter}` : ''
       const res = await fetch(`/api/assets${params}`, { credentials: 'include' })
       if (!res.ok) {
-        // 401 / 5xx 等：不要把错误对象当数组缓存或上屏（否则 .filter 会炸）
+        if (seq !== fetchSeqRef.current) return
+        setError(`加载失败 (${res.status})`)
         console.error('fetchAssets HTTP error:', res.status)
         return
       }
       const data = (await res.json()) as unknown
       if (!Array.isArray(data)) {
+        if (seq !== fetchSeqRef.current) return
+        setError('加载失败：数据格式异常')
         console.error('fetchAssets returned non-array:', data)
         return
       }
       if (seq !== fetchSeqRef.current) return
       if (ownerFilter !== ownerFilterRef.current) return
+      setError(null)
       assetsCache.set(key, data as Asset[])
       setAssets(data as Asset[])
     } catch (err) {
       if (seq !== fetchSeqRef.current) return
+      setError('加载失败：网络错误')
       console.error('fetchAssets failed:', err)
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false)
@@ -84,8 +91,8 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
   }, [fetchAssets])
 
   const addAsset = useCallback(
-    async (draft: AssetDraft) => {
-      if (!isLoggedIn) return
+    async (draft: AssetDraft): Promise<boolean> => {
+      if (!isLoggedIn) return false
       try {
         const res = await fetch('/api/assets', {
           method: 'POST',
@@ -95,25 +102,28 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
         })
         if (!res.ok) {
           const body = (await res.json()) as { error: string }
-          console.error('addAsset failed:', body.error)
-          return
+          toast.error(`新增失败：${body.error}`)
+          return false
         }
-        // 写操作影响所有 owner 视图，清空全部缓存
         assetsCache.clear()
         await fetchAssets()
+        toast.success('新增成功')
+        return true
       } catch (err) {
+        toast.error('新增失败：网络错误')
         console.error('addAsset failed:', err)
+        return false
       }
     },
     [isLoggedIn, fetchAssets],
   )
 
   const updateAsset = useCallback(
-    async (id: string, patch: AssetPatch) => {
-      if (!isLoggedIn) return
+    async (id: string, patch: AssetPatch): Promise<boolean> => {
+      if (!isLoggedIn) return false
       // 合并 patch 到当前状态，发送完整对象给 PUT
       const current = assets.find((a) => a.id === id)
-      if (!current) return
+      if (!current) return false
 
       const merged: AssetDraft = {
         symbol: patch.symbol ?? current.symbol,
@@ -143,21 +153,25 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
         })
         if (!res.ok) {
           const body = (await res.json()) as { error: string }
-          console.error('updateAsset failed:', body.error)
-          return
+          toast.error(`保存失败：${body.error}`)
+          return false
         }
         assetsCache.clear()
         await fetchAssets()
+        toast.success('保存成功')
+        return true
       } catch (err) {
+        toast.error('保存失败：网络错误')
         console.error('updateAsset failed:', err)
+        return false
       }
     },
     [isLoggedIn, assets, fetchAssets],
   )
 
   const deleteAsset = useCallback(
-    async (id: string) => {
-      if (!isLoggedIn) return
+    async (id: string): Promise<boolean> => {
+      if (!isLoggedIn) return false
       try {
         const res = await fetch(`/api/assets/${id}`, {
           method: 'DELETE',
@@ -165,13 +179,17 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
         })
         if (!res.ok) {
           const body = (await res.json()) as { error: string }
-          console.error('deleteAsset failed:', body.error)
-          return
+          toast.error(`删除失败：${body.error}`)
+          return false
         }
         assetsCache.clear()
         await fetchAssets()
+        toast.success('已删除')
+        return true
       } catch (err) {
+        toast.error('删除失败：网络错误')
         console.error('deleteAsset failed:', err)
+        return false
       }
     },
     [isLoggedIn, fetchAssets],
@@ -187,6 +205,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
   return {
     assets,
     loading,
+    error,
     refetch: fetchAssets,
     addAsset,
     updateAsset,

@@ -7,6 +7,7 @@ import { Dashboard } from '@/components/dashboard/Dashboard'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NAV_LABELS, type PageKey } from '@/components/layout/Sidebar'
 import { Settings } from '@/components/settings/Settings'
+import { Toaster } from '@/components/ui/sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 import type { OwnerType } from '@/lib/types'
@@ -74,6 +75,7 @@ function App() {
       )}
       <PageContent page={page} isLoggedIn={isLoggedIn} ownerFilter={ownerFilter} />
     </AppLayout>
+    <Toaster position="bottom-right" richColors />
   )
 }
 

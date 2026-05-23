@@ -103,7 +103,7 @@ function compoundAnnualized(rate: number, days: number): number | null {
 }
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
-  const { assets, loading, refetch } = useAssets(isLoggedIn, ownerFilter)
+  const { assets, loading, error: assetsError, refetch } = useAssets(isLoggedIn, ownerFilter)
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
   const [includeProvidentFund, setIncludeProvidentFund] = useState(false)
   const [includeGold, setIncludeGold] = useState(true)
@@ -291,6 +291,24 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (assetsError && assets.length === 0) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-xl border border-border/50 bg-card">
+        <Wallet className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <p className="text-sm font-medium text-white">{assetsError}</p>
+          <p className="mt-1 text-xs text-muted-foreground">请检查网络连接或登录状态</p>
+        </div>
+        <button
+          onClick={refetch}
+          className="rounded-md border border-border/50 bg-background/50 px-4 py-1.5 text-xs text-muted-foreground hover:text-white transition-colors"
+        >
+          重试
+        </button>
       </div>
     )
   }
