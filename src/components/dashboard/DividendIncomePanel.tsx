@@ -8,6 +8,7 @@ import {
   YAxis,
 } from 'recharts'
 
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { marketValue } from '@/lib/calc'
 import type { Asset } from '@/lib/types'
@@ -45,6 +46,7 @@ const TOOLTIP_STYLE = {
 }
 
 export function DividendIncomePanel({ divRecords, holdings, rates }: Props) {
+  const { isPrivate, mask } = usePrivacy()
   if (divRecords.length === 0) return null
 
   // ── stats ──────────────────────────────────────────────────────────────────
@@ -110,12 +112,12 @@ export function DividendIncomePanel({ divRecords, holdings, rates }: Props) {
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
           <div className="text-xs text-muted-foreground">累计分红</div>
-          <div className="mt-1 font-mono text-lg text-[#fbbf24]">{formatMoney(totalDivCNY, 'CNY')}</div>
+          <div className="mt-1 font-mono text-lg text-[#fbbf24]">{mask(formatMoney(totalDivCNY, 'CNY'))}</div>
         </div>
         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
           <div className="text-xs text-muted-foreground">近 12 月分红</div>
-          <div className="mt-1 font-mono text-lg text-[#fbbf24]">{formatMoney(t12DivCNY, 'CNY')}</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">月均 {formatMoney(t12DivCNY / 12, 'CNY')}</div>
+          <div className="mt-1 font-mono text-lg text-[#fbbf24]">{mask(formatMoney(t12DivCNY, 'CNY'))}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">月均 {mask(formatMoney(t12DivCNY / 12, 'CNY'))}</div>
         </div>
         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
           <div className="text-xs text-muted-foreground">近 12 月股息率</div>
@@ -147,13 +149,13 @@ export function DividendIncomePanel({ divRecords, holdings, rates }: Props) {
               tick={{ fill: '#6b7280', fontSize: 10 }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={shortMoney}
+              tickFormatter={isPrivate ? () => '' : shortMoney}
               width={36}
             />
             <Tooltip
               contentStyle={TOOLTIP_STYLE}
               cursor={{ fill: 'rgba(251,191,36,0.08)' }}
-              formatter={(v) => [formatMoney(Number(v ?? 0), 'CNY'), '分红']}
+              formatter={(v) => [mask(formatMoney(Number(v ?? 0), 'CNY')), '分红']}
               labelFormatter={(label) => String(label ?? '')}
             />
             <Bar dataKey="value" fill="#fbbf24" radius={[2, 2, 0, 0]} maxBarSize={28} />
@@ -176,7 +178,7 @@ export function DividendIncomePanel({ divRecords, holdings, rates }: Props) {
                   />
                 </div>
                 <div className="w-28 shrink-0 text-right font-mono text-xs text-[#fbbf24]">
-                  {formatMoney(r.cny, 'CNY')}
+                  {mask(formatMoney(r.cny, 'CNY'))}
                 </div>
                 <div className="hidden w-16 shrink-0 text-right text-xs text-muted-foreground sm:block">
                   {r.last.slice(0, 7)}

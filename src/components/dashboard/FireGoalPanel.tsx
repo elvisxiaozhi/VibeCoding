@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Pencil, Target, X } from 'lucide-react'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { yearsToGoal } from '@/lib/calc'
 
 const LS_TARGET = 'fire_goal_target'
@@ -35,6 +36,7 @@ interface FireGoalPanelProps {
 }
 
 export function FireGoalPanel({ netWorthCNY, annReturn }: FireGoalPanelProps) {
+  const { mask } = usePrivacy()
   const [target, setTarget] = useState(() => {
     const v = parseFloat(readLS(LS_TARGET, String(DEFAULT_TARGET)))
     return isNaN(v) || v <= 0 ? DEFAULT_TARGET : v
@@ -115,7 +117,7 @@ export function FireGoalPanel({ netWorthCNY, annReturn }: FireGoalPanelProps) {
               <span>万</span>
             </span>
           ) : (
-            <span className="font-mono text-white">¥{formatWan(target)}</span>
+            <span className="font-mono text-white">{mask(`¥${formatWan(target)}`)}</span>
           )}
           <button
             onClick={editingTarget ? applyTargetEdit : openTargetEdit}
@@ -129,7 +131,7 @@ export function FireGoalPanel({ netWorthCNY, annReturn }: FireGoalPanelProps) {
       {/* Progress bar */}
       <div className="mt-4">
         <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-          <span>当前 <span className="font-mono text-white">¥{formatWan(safeCurrent)}</span></span>
+          <span>当前 <span className="font-mono text-white">{mask(`¥${formatWan(safeCurrent)}`)}</span></span>
           <span className="font-mono text-white">{(progress * 100).toFixed(1)}%</span>
         </div>
         <div className="h-2 w-full rounded-full bg-background/60 overflow-hidden">

@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import type { PriceRefreshStatus } from '@/lib/types'
 import { MARKET_LABELS } from '@/lib/types'
@@ -110,6 +111,7 @@ export function PriceRefreshCenter({
   onRefreshAll,
   onRefreshOne,
 }: PriceRefreshCenterProps) {
+  const { mask } = usePrivacy()
   const [expanded, setExpanded] = useState(false)
   const groupedStatuses = groupStatuses(statuses)
   const success = groupedStatuses.filter((item) => item.status === 'success').length
@@ -236,7 +238,7 @@ export function PriceRefreshCenter({
                   </p>
                 </div>
                 <div className="font-mono text-xs text-white">
-                  {formatMoney(item.currentPrice, item.currency)}
+                  {mask(formatMoney(item.currentPrice, item.currency))}
                 </div>
                 <div>
                   <span className={cn('rounded-full border px-2 py-0.5 text-xs', statusClass(item.status))}>

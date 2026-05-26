@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { AlertTriangle, ChevronDown, ChevronRight, ShieldCheck } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import type { ExposureItem, RiskExposure, RiskSeverity } from '@/lib/risk'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ function barClass(severity: RiskSeverity): string {
 }
 
 function ExposureBar({ item }: { item: ExposureItem }) {
+  const { mask } = usePrivacy()
   return (
     <div className={cn('rounded-lg border p-3', severityClass(item.severity))}>
       <div className="flex items-center justify-between gap-4">
@@ -39,7 +41,7 @@ function ExposureBar({ item }: { item: ExposureItem }) {
         <div className="min-w-[132px] text-right">
           <p className="font-mono text-sm text-white">{formatPercent(item.ratio)}</p>
           <p className="font-mono text-[10px] text-muted-foreground">
-            {formatMoney(item.valueCNY, 'CNY')}
+            {mask(formatMoney(item.valueCNY, 'CNY'))}
           </p>
         </div>
       </div>

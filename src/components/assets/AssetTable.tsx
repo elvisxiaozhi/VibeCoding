@@ -49,6 +49,7 @@ import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory, type AssetSubcategory } from '@/lib/assetClassification'
 import { costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER, OWNER_LABELS, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
 
@@ -186,6 +187,7 @@ function BalanceAssetPanel({
   onEdit,
   onDelete,
 }: BalanceAssetPanelProps) {
+  const { mask } = usePrivacy()
   const totalCNY = groups.reduce((sum, group) => sum + toCNY(group.totalMV, group.currency, rates), 0)
 
   return (
@@ -193,7 +195,7 @@ function BalanceAssetPanel({
       <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-baseline sm:justify-between">
         <h3 className="text-sm font-semibold text-white">{title}</h3>
         <div className="text-xs text-muted-foreground">
-          合计 <span className="font-mono text-white">{formatMoney(totalCNY, 'CNY')}</span>
+          合计 <span className="font-mono text-white">{mask(formatMoney(totalCNY, 'CNY'))}</span>
         </div>
       </div>
 
@@ -217,11 +219,11 @@ function BalanceAssetPanel({
                 <div className="text-left sm:text-right">
                   <div className="text-xs text-muted-foreground">当前余额</div>
                   <div className="mt-1 font-mono text-2xl text-white">
-                    {formatMoney(group.totalMV, group.currency)}
+                    {mask(formatMoney(group.totalMV, group.currency))}
                   </div>
                   {group.currency !== 'CNY' && (
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                      ≈ {mask(formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY'))}
                     </div>
                   )}
                 </div>
@@ -422,6 +424,7 @@ interface AssetTableProps {
 }
 
 export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
+  const { mask } = usePrivacy()
   const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
   const { isReadOnly } = useEditMode()
@@ -860,12 +863,12 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
               </h3>
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">
-                  市值 <span className="font-mono text-white">{formatMoney(groupMVCNY, 'CNY')}</span>
+                  市值 <span className="font-mono text-white">{mask(formatMoney(groupMVCNY, 'CNY'))}</span>
                 </span>
                 <span className="text-muted-foreground">
                   盈亏{' '}
                   <span className={`font-mono ${isGroupPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                    {isGroupPositive ? '+' : ''}{formatMoney(groupPnLCNY, 'CNY')}
+                    {mask(`${isGroupPositive ? '+' : ''}${formatMoney(groupPnLCNY, 'CNY')}`)}
                   </span>
                 </span>
                 {groupKey !== 'gold' && groupAnn !== null && (
@@ -898,12 +901,12 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                         {subgroup.groups.length} 个标的
                       </span>
                       <span>
-                        小计 <span className="font-mono text-white">{formatMoney(subMVCNY, 'CNY')}</span>
+                        小计 <span className="font-mono text-white">{mask(formatMoney(subMVCNY, 'CNY'))}</span>
                       </span>
                       <span>
                         盈亏{' '}
                         <span className={`font-mono ${isSubPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                          {isSubPositive ? '+' : ''}{formatMoney(subPnLCNY, 'CNY')}
+                          {mask(`${isSubPositive ? '+' : ''}${formatMoney(subPnLCNY, 'CNY')}`)}
                         </span>
                       </span>
                     </div>
@@ -949,11 +952,11 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               </div>
                               <div className="text-right">
                                 <div className="font-mono text-lg text-white">
-                                  {isClosed ? '—' : formatMoney(group.totalMV, group.currency)}
+                                  {isClosed ? '—' : mask(formatMoney(group.totalMV, group.currency))}
                                 </div>
                                 {!isClosed && group.currency !== 'CNY' && (
                                   <div className="text-[10px] text-muted-foreground">
-                                    ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                                    ≈ {mask(formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY'))}
                                   </div>
                                 )}
                               </div>
@@ -963,7 +966,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               <div>
                                 <div className="text-muted-foreground">盈亏</div>
                                 <div className={`mt-1 font-mono ${isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                                  {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
+                                  {mask(`${isPositive ? '+' : ''}${formatMoney(group.totalPnL, group.currency)}`)}
                                   {groupPnlRate !== null && <span className="ml-1 text-[11px]">/ {formatPercent(groupPnlRate)}</span>}
                                 </div>
                               </div>
@@ -991,15 +994,15 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 </div>
                                 <div>
                                   <div className="text-muted-foreground">买入金额</div>
-                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.totalCost, group.currency)}</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : mask(formatMoney(group.totalCost, group.currency))}</div>
                                 </div>
                                 <div>
                                   <div className="text-muted-foreground">成本价</div>
-                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : mask(formatMoney(group.weightedCostBasis, group.currency))}</div>
                                 </div>
                                 <div>
                                   <div className="text-muted-foreground">现价</div>
-                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatMoney(group.currentPrice, group.currency)}</div>
+                                  <div className="mt-1 font-mono text-white">{isClosed ? '—' : mask(formatMoney(group.currentPrice, group.currency))}</div>
                                 </div>
                               </div>
 
@@ -1010,7 +1013,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                     <div className="min-w-0 truncate text-muted-foreground">
                                       {record.purchasedAt.slice(0, 10)} {recordLabel(record)}
                                     </div>
-                                    <div className="shrink-0 font-mono text-white">{recordValue(record)}</div>
+                                    <div className="shrink-0 font-mono text-white">{mask(recordValue(record))}</div>
                                   </div>
                                 ))}
                               </div>
@@ -1098,10 +1101,10 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   <TableCell className="text-right font-mono text-white">
                                     {isClosed ? '—' : (
                                       <div>
-                                        {formatMoney(group.totalMV, group.currency)}
+                                        {mask(formatMoney(group.totalMV, group.currency))}
                                         {group.currency !== 'CNY' && (
                                           <div className="text-[10px] text-muted-foreground">
-                                            ≈ {formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY')}
+                                            ≈ {mask(formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY'))}
                                           </div>
                                         )}
                                       </div>
@@ -1111,7 +1114,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {!hiddenCols.has('pnl') && (
                                   <TableCell className={`text-right font-mono ${pnlColor}`}>
                                     <div>
-                                      {isPositive ? '+' : ''}{formatMoney(group.totalPnL, group.currency)}
+                                      {mask(`${isPositive ? '+' : ''}${formatMoney(group.totalPnL, group.currency)}`)}
                                       <div className="text-[10px] text-muted-foreground">
                                         {groupPnlRate === null ? '—' : formatPercent(groupPnlRate)}
                                       </div>
@@ -1145,19 +1148,19 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                         </div>
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
                                           <div className="text-xs text-muted-foreground">买入金额</div>
-                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatMoney(group.totalCost, group.currency)}</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : mask(formatMoney(group.totalCost, group.currency))}</div>
                                         </div>
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
                                           <div className="text-xs text-muted-foreground">成本价</div>
-                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatMoney(group.weightedCostBasis, group.currency)}</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : mask(formatMoney(group.weightedCostBasis, group.currency))}</div>
                                         </div>
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
                                           <div className="text-xs text-muted-foreground">现价</div>
-                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatMoney(group.currentPrice, group.currency)}</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : mask(formatMoney(group.currentPrice, group.currency))}</div>
                                         </div>
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
                                           <div className="text-xs text-muted-foreground">分红累计</div>
-                                          <div className="mt-1 font-mono text-sm text-white">{group.totalDividends > 0 ? formatMoney(group.totalDividends, group.currency) : '—'}</div>
+                                          <div className="mt-1 font-mono text-sm text-white">{group.totalDividends > 0 ? mask(formatMoney(group.totalDividends, group.currency)) : '—'}</div>
                                         </div>
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
                                           <div className="text-xs text-muted-foreground">币种</div>
@@ -1188,7 +1191,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                               {record.purchasedAt.slice(0, 10)} {recordLabel(record)}
                                               {record.note && <span className="ml-2 text-muted-foreground/70">{record.note}</span>}
                                             </div>
-                                            <div className="shrink-0 font-mono text-white">{recordValue(record)}</div>
+                                            <div className="shrink-0 font-mono text-white">{mask(recordValue(record))}</div>
                                           </div>
                                         ))}
                                       </div>

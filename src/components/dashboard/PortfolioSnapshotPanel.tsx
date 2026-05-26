@@ -15,6 +15,7 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import type { PortfolioSnapshot, SnapshotDimension } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -102,6 +103,7 @@ export function PortfolioSnapshotPanel({
   isLoggedIn,
   onCreateToday,
 }: PortfolioSnapshotPanelProps) {
+  const { isPrivate, mask } = usePrivacy()
   const [tab, setTab] = useState<'trend' | 'structure'>('trend')
   const [timeRange, setTimeRange] = useState<TimeRange>('all')
   const [dimension, setDimension] = useState<SnapshotDimension>('market')
@@ -225,7 +227,7 @@ export function PortfolioSnapshotPanel({
                   />
                   <YAxis
                     tick={{ fill: '#9ca3af', fontSize: 10 }}
-                    tickFormatter={shortMoney}
+                    tickFormatter={isPrivate ? () => '' : shortMoney}
                     axisLine={false}
                     tickLine={false}
                     width={44}
@@ -238,7 +240,7 @@ export function PortfolioSnapshotPanel({
                         totalCostCNY: '本金',
                         netWorthCNY: '净资产',
                       }
-                      return [formatMoney(Number(value ?? 0), 'CNY'), labels[name as string] ?? String(name)]
+                      return [mask(formatMoney(Number(value ?? 0), 'CNY')), labels[name as string] ?? String(name)]
                     }}
                     labelFormatter={(l) => `日期 ${l}`}
                   />
@@ -325,7 +327,7 @@ export function PortfolioSnapshotPanel({
                       />
                       <YAxis
                         tick={{ fill: '#9ca3af', fontSize: 10 }}
-                        tickFormatter={shortMoney}
+                        tickFormatter={isPrivate ? () => '' : shortMoney}
                         axisLine={false}
                         tickLine={false}
                         width={44}
@@ -333,7 +335,7 @@ export function PortfolioSnapshotPanel({
                       <Tooltip
                         contentStyle={TOOLTIP_STYLE}
                         formatter={(value, key) => [
-                          formatMoney(Number(value ?? 0), 'CNY'),
+                          mask(formatMoney(Number(value ?? 0), 'CNY')),
                           labelMap.get(String(key)) ?? String(key),
                         ]}
                         labelFormatter={(l) => `日期 ${l}`}

@@ -5,6 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory } from '@/lib/assetClassification'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import type { Asset } from '@/lib/types'
 import {
@@ -109,6 +110,7 @@ export function AssetStructurePanel({
   totalValueCNY,
   assetValueCNY,
 }: AssetStructurePanelProps) {
+  const { mask } = usePrivacy()
   const [view, setView] = useState<StructureView>('category')
   const items = useMemo(
     () => buildItems(holdings, totalValueCNY, assetValueCNY, view),
@@ -168,7 +170,7 @@ export function AssetStructurePanel({
                       color: 'hsl(var(--popover-foreground))',
                       fontSize: '12px',
                     }}
-                    formatter={(value) => [formatMoney(Number(value), 'CNY'), '市值']}
+                    formatter={(value) => [mask(formatMoney(Number(value), 'CNY')), '市值']}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -191,7 +193,7 @@ export function AssetStructurePanel({
                     />
                   </div>
                   <div className="text-right font-mono text-xs text-muted-foreground">
-                    {formatMoney(item.value, 'CNY')}
+                    {mask(formatMoney(item.value, 'CNY'))}
                   </div>
                 </div>
               ))}

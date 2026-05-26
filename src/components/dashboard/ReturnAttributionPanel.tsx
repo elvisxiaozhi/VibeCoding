@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import type { AttributionGroupBy, ReturnAttribution, ReturnAttributionItem } from '@/lib/attribution'
 import { groupLabel } from '@/lib/attribution'
@@ -44,6 +45,7 @@ function Metric({
   detail?: string
   icon: typeof TrendingUp
 }) {
+  const { mask } = usePrivacy()
   return (
     <div className="rounded-lg border border-border/40 bg-background/40 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -51,7 +53,7 @@ function Metric({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
       <p className={cn('mt-2 truncate font-mono text-lg font-semibold', amountClass(value))}>
-        {signedMoney(value)}
+        {mask(signedMoney(value))}
       </p>
       {detail ? (
         <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
@@ -61,6 +63,7 @@ function Metric({
 }
 
 function ContributionBar({ item, maxAbsReturn }: { item: ReturnAttributionItem; maxAbsReturn: number }) {
+  const { mask } = usePrivacy()
   const ratio = maxAbsReturn === 0 ? 0 : Math.abs(item.totalReturnCNY) / maxAbsReturn
 
   return (
@@ -75,7 +78,7 @@ function ContributionBar({ item, maxAbsReturn }: { item: ReturnAttributionItem; 
         />
       </div>
       <div className={cn('min-w-[132px] text-right font-mono text-sm', amountClass(item.totalReturnCNY))}>
-        {signedMoney(item.totalReturnCNY)}
+        {mask(signedMoney(item.totalReturnCNY))}
       </div>
     </div>
   )
@@ -97,6 +100,7 @@ export function ReturnAttributionPanel({
   attribution,
   historicalRatesLoading,
 }: ReturnAttributionPanelProps) {
+  const { mask } = usePrivacy()
   const [groupBy, setGroupBy] = useState<AttributionGroupBy>('asset')
   const rows = itemList(attribution, groupBy)
   const topRows = rows.slice(0, 5)
@@ -152,7 +156,7 @@ export function ReturnAttributionPanel({
           <Metric
             label="总收益"
             value={attribution.totals.totalReturnCNY}
-            detail={`成本 ${formatMoney(attribution.totals.costCNY, 'CNY')}`}
+            detail={`成本 ${mask(formatMoney(attribution.totals.costCNY, 'CNY'))}`}
             icon={BarChart3}
           />
         </div>
@@ -217,19 +221,19 @@ export function ReturnAttributionPanel({
                         {item.label}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.priceReturnCNY))}>
-                        {signedMoney(item.priceReturnCNY)}
+                        {mask(signedMoney(item.priceReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.dividendReturnCNY))}>
-                        {signedMoney(item.dividendReturnCNY)}
+                        {mask(signedMoney(item.dividendReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.fxReturnCNY))}>
-                        {signedMoney(item.fxReturnCNY)}
+                        {mask(signedMoney(item.fxReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.realizedReturnCNY))}>
-                        {signedMoney(item.realizedReturnCNY)}
+                        {mask(signedMoney(item.realizedReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm font-medium', amountClass(item.totalReturnCNY))}>
-                        {signedMoney(item.totalReturnCNY)}
+                        {mask(signedMoney(item.totalReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.contributionRatio))}>
                         {formatPercent(item.contributionRatio)}

@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useEditMode } from '@/hooks/useEditMode'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useLiabilities } from '@/hooks/useLiabilities'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney, toCNY } from '@/lib/currency'
 import type { Liability, OwnerType } from '@/lib/types'
 import { LIABILITY_CATEGORY_LABELS } from '@/lib/types'
@@ -18,6 +19,7 @@ interface LiabilityTableProps {
 }
 
 export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps) {
+  const { mask } = usePrivacy()
   const { liabilities, loading, addLiability, updateLiability, deleteLiability } = useLiabilities(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
   const { isReadOnly } = useEditMode()
@@ -56,7 +58,7 @@ export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps)
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">总负债</p>
-          <p className="font-mono text-2xl font-semibold text-white">{formatMoney(totalCNY, 'CNY')}</p>
+          <p className="font-mono text-2xl font-semibold text-white">{mask(formatMoney(totalCNY, 'CNY'))}</p>
         </div>
         {canEdit && (
           <Button onClick={handleAdd}>
@@ -79,10 +81,10 @@ export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps)
                 <div className="mt-1 text-xs text-muted-foreground">{LIABILITY_CATEGORY_LABELS[liability.category]}</div>
               </div>
             <div className="text-right">
-              <div className="font-mono text-lg text-white">{formatMoney(liability.principal, liability.currency)}</div>
+              <div className="font-mono text-lg text-white">{mask(formatMoney(liability.principal, liability.currency))}</div>
               {liability.currency !== 'CNY' && (
                   <div className="text-[10px] text-muted-foreground">
-                    ≈ {formatMoney(toCNY(liability.principal, liability.currency, rates), 'CNY')}
+                    ≈ {mask(formatMoney(toCNY(liability.principal, liability.currency, rates), 'CNY'))}
                   </div>
                 )}
               </div>
@@ -119,10 +121,10 @@ export function LiabilityTable({ isLoggedIn, ownerFilter }: LiabilityTableProps)
                 <TableCell className="font-medium text-white">{liability.name}</TableCell>
                 <TableCell className="text-muted-foreground">{LIABILITY_CATEGORY_LABELS[liability.category]}</TableCell>
                 <TableCell className="text-right font-mono text-white">
-                  <div>{formatMoney(liability.principal, liability.currency)}</div>
+                  <div>{mask(formatMoney(liability.principal, liability.currency))}</div>
                   {liability.currency !== 'CNY' && (
                     <div className="text-[10px] text-muted-foreground">
-                      ≈ {formatMoney(toCNY(liability.principal, liability.currency, rates), 'CNY')}
+                      ≈ {mask(formatMoney(toCNY(liability.principal, liability.currency, rates), 'CNY'))}
                     </div>
                   )}
                 </TableCell>

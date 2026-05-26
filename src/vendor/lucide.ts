@@ -13,6 +13,7 @@ export { default as ChevronRight } from 'lucide-react/dist/esm/icons/chevron-rig
 export { default as CircleDollarSign } from 'lucide-react/dist/esm/icons/circle-dollar-sign.js'
 export { default as DollarSign } from 'lucide-react/dist/esm/icons/dollar-sign.js'
 export { default as Eye } from 'lucide-react/dist/esm/icons/eye.js'
+export { default as EyeOff } from 'lucide-react/dist/esm/icons/eye-off.js'
 export { default as LayoutDashboard } from 'lucide-react/dist/esm/icons/layout-dashboard.js'
 export { default as LineChart } from 'lucide-react/dist/esm/icons/line-chart.js'
 export { default as Loader2 } from 'lucide-react/dist/esm/icons/loader-2.js'

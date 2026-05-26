@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table'
 import { useClearedAssets } from '@/hooks/useClearedAssets'
 import { daysBetween, formatHoldingDays } from '@/lib/calc'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import { CATEGORY_LABELS } from '@/lib/types'
 
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function ClearedAssetsTable({ isLoggedIn }: Props) {
+  const { mask } = usePrivacy()
   const { assets, loading } = useClearedAssets(isLoggedIn)
 
   if (!isLoggedIn) {
@@ -83,16 +85,16 @@ export function ClearedAssetsTable({ isLoggedIn }: Props) {
                   {CATEGORY_LABELS[a.category] ?? a.category}
                 </TableCell>
                 <TableCell className="text-right text-sm text-muted-foreground">
-                  {formatMoney(a.totalCost, a.currency)}
+                  {mask(formatMoney(a.totalCost, a.currency))}
                 </TableCell>
                 <TableCell className="text-right text-sm text-muted-foreground">
-                  {formatMoney(a.totalProceeds, a.currency)}
+                  {mask(formatMoney(a.totalProceeds, a.currency))}
                 </TableCell>
                 <TableCell className="text-right text-sm text-muted-foreground">
-                  {a.totalDividends > 0 ? formatMoney(a.totalDividends, a.currency) : '—'}
+                  {a.totalDividends > 0 ? mask(formatMoney(a.totalDividends, a.currency)) : '—'}
                 </TableCell>
                 <TableCell className={`text-right text-sm font-medium ${pnlColor}`}>
-                  {a.pnl >= 0 ? '+' : ''}{formatMoney(a.pnl, a.currency)}
+                  {mask(`${a.pnl >= 0 ? '+' : ''}${formatMoney(a.pnl, a.currency)}`)}
                 </TableCell>
                 <TableCell className={`text-right text-sm font-medium ${pnlColor}`}>
                   {a.pnl >= 0 ? '+' : ''}{(pnlPct * 100).toFixed(2)}%
@@ -111,7 +113,7 @@ export function ClearedAssetsTable({ isLoggedIn }: Props) {
       <div className="flex items-center justify-end gap-6 border-t border-white/10 px-4 py-3 text-sm">
         <span className="text-muted-foreground">合计已实现盈亏</span>
         <span className={`font-semibold ${totalPnL >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-          {totalPnL >= 0 ? '+' : ''}{formatMoney(totalPnL, 'USD')}
+          {mask(`${totalPnL >= 0 ? '+' : ''}${formatMoney(totalPnL, 'USD')}`)}
         </span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ArrowDown, ArrowUp, CircleDollarSign, X } from 'lucide-react'
 
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney, toCNY } from '@/lib/currency'
 import { contractMultiplier, costValue, marketValue } from '@/lib/calc'
 import { CATEGORY_LABELS, type Asset, type AssetCategory } from '@/lib/types'
@@ -108,6 +109,7 @@ export function AssetDetailSheet({
   summaries,
   rates,
 }: AssetDetailSheetProps) {
+  const { mask } = usePrivacy()
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -187,20 +189,20 @@ export function AssetDetailSheet({
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <p className="text-xs text-muted-foreground">持仓市值</p>
-              <p className="mt-1 font-mono text-base font-semibold text-white">{formatMoney(totalMV, currency)}</p>
-              {currency !== 'CNY' && <p className="mt-0.5 text-xs text-muted-foreground">≈ {formatMoney(mvCNY, 'CNY')}</p>}
+              <p className="mt-1 font-mono text-base font-semibold text-white">{mask(formatMoney(totalMV, currency))}</p>
+              {currency !== 'CNY' && <p className="mt-0.5 text-xs text-muted-foreground">≈ {mask(formatMoney(mvCNY, 'CNY'))}</p>}
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <p className="text-xs text-muted-foreground">投入成本</p>
-              <p className="mt-1 font-mono text-base font-semibold text-white">{formatMoney(totalCost, currency)}</p>
-              {currency !== 'CNY' && <p className="mt-0.5 text-xs text-muted-foreground">≈ {formatMoney(costCNY, 'CNY')}</p>}
+              <p className="mt-1 font-mono text-base font-semibold text-white">{mask(formatMoney(totalCost, currency))}</p>
+              {currency !== 'CNY' && <p className="mt-0.5 text-xs text-muted-foreground">≈ {mask(formatMoney(costCNY, 'CNY'))}</p>}
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <p className="text-xs text-muted-foreground">浮动盈亏</p>
               <p className={cn('mt-1 font-mono text-base font-semibold', pnlClass(pnl))}>
-                {pnl >= 0 ? '+' : ''}{formatMoney(pnl, currency)}
+                {mask(`${pnl >= 0 ? '+' : ''}${formatMoney(pnl, currency)}`)}
               </p>
-              <p className={cn('mt-0.5 text-xs', pnlClass(pnlRate))}>{fmtPct(pnlRate)}{currency !== 'CNY' && ` · ≈ ${pnl >= 0 ? '+' : ''}${formatMoney(pnlCNY, 'CNY')}`}</p>
+              <p className={cn('mt-0.5 text-xs', pnlClass(pnlRate))}>{fmtPct(pnlRate)}{currency !== 'CNY' && ` · ≈ ${mask(`${pnl >= 0 ? '+' : ''}${formatMoney(pnlCNY, 'CNY')}`)}`}</p>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <p className="text-xs text-muted-foreground">XIRR 年化</p>
@@ -208,7 +210,7 @@ export function AssetDetailSheet({
                 {summary?.annReturn != null ? fmtPct(summary.annReturn) : '—'}
               </p>
               {totalDividends > 0 && (
-                <p className="mt-0.5 text-xs text-muted-foreground">累计分红 {formatMoney(totalDividends, currency)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">累计分红 {mask(formatMoney(totalDividends, currency))}</p>
               )}
             </div>
           </div>
@@ -219,8 +221,8 @@ export function AssetDetailSheet({
               <p className="mb-2 text-xs text-muted-foreground">当前持仓</p>
               <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
                 <span className="text-muted-foreground">持仓量 <span className="font-mono text-white">{totalQty.toLocaleString()}</span></span>
-                <span className="text-muted-foreground">现价 <span className="font-mono text-white">{formatMoney(currentPrice, currency)}</span></span>
-                <span className="text-muted-foreground">均价 <span className="font-mono text-white">{formatMoney(avgCostPerUnit, currency)}</span></span>
+                <span className="text-muted-foreground">现价 <span className="font-mono text-white">{mask(formatMoney(currentPrice, currency))}</span></span>
+                <span className="text-muted-foreground">均价 <span className="font-mono text-white">{mask(formatMoney(avgCostPerUnit, currency))}</span></span>
               </div>
               {symHoldings.length > 1 && (
                 <div className="mt-2 space-y-1">
@@ -228,7 +230,7 @@ export function AssetDetailSheet({
                     <div key={a.id} className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="w-24 shrink-0">{a.purchasedAt.slice(0, 10)}</span>
                       <span className="font-mono text-white">{a.quantity} 股</span>
-                      <span>@ {formatMoney(a.costBasis, currency)}</span>
+                      <span>@ {mask(formatMoney(a.costBasis, currency))}</span>
                     </div>
                   ))}
                 </div>
@@ -261,21 +263,21 @@ export function AssetDetailSheet({
                         {ev.type !== 'dividend' && (
                           <>
                             <span className="font-mono text-xs text-white">{ev.qty.toLocaleString()} 股</span>
-                            <span className="text-xs text-muted-foreground">@ {formatMoney(ev.price, ev.currency)}</span>
+                            <span className="text-xs text-muted-foreground">@ {mask(formatMoney(ev.price, ev.currency))}</span>
                           </>
                         )}
                       </div>
                       <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                         <span>
                           总额 <span className={cn('font-mono', ev.type === 'sell' ? 'text-[#ef4444]' : ev.type === 'dividend' ? 'text-[#fbbf24]' : 'text-white')}>
-                            {ev.type === 'sell' ? '+' : ev.type === 'buy' ? '-' : '+'}{formatMoney(ev.total, ev.currency)}
+                            {mask(`${ev.type === 'sell' ? '+' : ev.type === 'buy' ? '-' : '+'}${formatMoney(ev.total, ev.currency)}`)}
                           </span>
                         </span>
                         {ev.type !== 'dividend' && (
                           <span>
                             持仓 <span className="font-mono text-white">{ev.runningQty.toLocaleString()}</span>
                             {ev.avgCost != null && (
-                              <> · 均价 <span className="font-mono text-white">{formatMoney(ev.avgCost, ev.currency)}</span></>
+                              <> · 均价 <span className="font-mono text-white">{mask(formatMoney(ev.avgCost, ev.currency))}</span></>
                             )}
                           </span>
                         )}

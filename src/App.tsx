@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { NAV_LABELS, type PageKey } from '@/components/layout/Sidebar'
 import { Settings } from '@/components/settings/Settings'
 import { Toaster } from '@/components/ui/sonner'
+import { PrivacyProvider } from '@/context/PrivacyContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 import type { OwnerType } from '@/lib/types'
@@ -47,6 +48,7 @@ function App() {
   }
 
   return (
+    <PrivacyProvider>
     <Fragment>
       <AppLayout
         active={page}
@@ -78,6 +80,7 @@ function App() {
       </AppLayout>
       <Toaster position="bottom-right" richColors />
     </Fragment>
+    </PrivacyProvider>
   )
 }
 

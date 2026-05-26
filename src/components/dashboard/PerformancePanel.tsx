@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney } from '@/lib/currency'
 import type { AttributionGroupBy, ReturnAttribution, ReturnAttributionItem } from '@/lib/attribution'
 import { groupLabel } from '@/lib/attribution'
@@ -71,6 +72,7 @@ function Metric({
   detail?: string
   icon: typeof TrendingUp
 }) {
+  const { mask } = usePrivacy()
   return (
     <div className="rounded-lg border border-border/40 bg-background/40 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -78,7 +80,7 @@ function Metric({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
       <p className={cn('mt-2 truncate font-mono text-lg font-semibold', amountClass(value))}>
-        {signedMoney(value)}
+        {mask(signedMoney(value))}
       </p>
       {detail ? (
         <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
@@ -113,6 +115,7 @@ export function PerformancePanel({
   summaries,
   onSymbolClick,
 }: PerformancePanelProps) {
+  const { mask } = usePrivacy()
   const [groupBy, setGroupBy] = useState<AttributionGroupBy>('asset')
   const [rankingMode, setRankingMode] = useState<RankingMode>('pnl')
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -184,7 +187,7 @@ export function PerformancePanel({
           <Metric
             label="总收益"
             value={attribution.totals.totalReturnCNY}
-            detail={detailsOpen ? `成本 ${formatMoney(attribution.totals.costCNY, 'CNY')}` : undefined}
+            detail={detailsOpen ? `成本 ${mask(formatMoney(attribution.totals.costCNY, 'CNY'))}` : undefined}
             icon={BarChart3}
           />
         </div>
@@ -218,7 +221,7 @@ export function PerformancePanel({
                   ? formatPercent(item.annReturn ?? 0)
                   : rankingMode === 'rate'
                     ? formatPercent(item.pnlRate)
-                    : signedMoney(item.totalPnLCNY)
+                    : mask(signedMoney(item.totalPnLCNY))
               const signValue =
                 rankingMode === 'annualized'
                   ? item.annReturn ?? 0
@@ -275,16 +278,16 @@ export function PerformancePanel({
                         {item.label}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.priceReturnCNY))}>
-                        {signedMoney(item.priceReturnCNY)}
+                        {mask(signedMoney(item.priceReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.dividendReturnCNY))}>
-                        {signedMoney(item.dividendReturnCNY)}
+                        {mask(signedMoney(item.dividendReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.fxReturnCNY))}>
-                        {signedMoney(item.fxReturnCNY)}
+                        {mask(signedMoney(item.fxReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm font-medium', amountClass(item.totalReturnCNY))}>
-                        {signedMoney(item.totalReturnCNY)}
+                        {mask(signedMoney(item.totalReturnCNY))}
                       </TableCell>
                       <TableCell className={cn('text-right font-mono text-sm', amountClass(item.contributionRatio))}>
                         {formatPercent(item.contributionRatio)}

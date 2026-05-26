@@ -26,6 +26,7 @@ import { usePriceRefresh } from '@/hooks/usePriceRefresh'
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
 import { calculateReturnAttribution } from '@/lib/attribution'
 import { contractMultiplier, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalPnLValue, xirrRate } from '@/lib/calc'
+import { usePrivacy } from '@/context/PrivacyContext'
 import { formatCompactMoney, formatMoney, toCNY } from '@/lib/currency'
 import { calculateRiskExposure } from '@/lib/risk'
 import { CURRENCY_CODES, CURRENCY_LABELS, isCashLikeCurrencyAsset, type Asset, type OwnerType } from '@/lib/types'
@@ -107,6 +108,7 @@ function compoundAnnualized(rate: number, days: number): number | null {
 }
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
+  const { mask } = usePrivacy()
   const { assets, loading, error: assetsError, refetch } = useAssets(isLoggedIn, ownerFilter)
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
   const [includeProvidentFund, setIncludeProvidentFund] = useState(false)
@@ -378,10 +380,10 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/40 pt-3 text-xs text-muted-foreground">
           <span>
-            公积金 <span className="font-mono text-white">{formatCNY(providentFundValueCNY)}</span>
+            公积金 <span className="font-mono text-white">{mask(formatCNY(providentFundValueCNY))}</span>
           </span>
           <span>
-            黄金 <span className="font-mono text-white">{formatCNY(goldValueCNY)}</span>
+            黄金 <span className="font-mono text-white">{mask(formatCNY(goldValueCNY))}</span>
           </span>
         </div>
       </div>
@@ -390,37 +392,37 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <StatCard
           title="总资产"
-          value={formatCompactCNY(totalValueCNY)}
-          valueTitle={formatCNY(totalValueCNY)}
+          value={mask(formatCompactCNY(totalValueCNY))}
+          valueTitle={mask(formatCNY(totalValueCNY))}
           icon={Wallet}
         />
         <StatCard
           title="净资产"
-          value={formatCompactCNY(netWorthCNY)}
-          valueTitle={formatCNY(netWorthCNY)}
+          value={mask(formatCompactCNY(netWorthCNY))}
+          valueTitle={mask(formatCNY(netWorthCNY))}
           subtitle={`负债率 ${(liabilityRatio * 100).toFixed(2)}%`}
           icon={DollarSign}
           variant={netWorthCNY >= 0 ? 'profit' : 'loss'}
         />
         <StatCard
           title="总负债"
-          value={formatCompactCNY(totalLiabilityCNY)}
-          valueTitle={formatCNY(totalLiabilityCNY)}
+          value={mask(formatCompactCNY(totalLiabilityCNY))}
+          valueTitle={mask(formatCNY(totalLiabilityCNY))}
           icon={TrendingDown}
           variant={totalLiabilityCNY > 0 ? 'loss' : 'default'}
         />
         <StatCard
           title="浮动盈亏"
-          value={`${totalPnLCNY >= 0 ? '+' : ''}${formatCompactCNY(totalPnLCNY)}`}
-          valueTitle={`${totalPnLCNY >= 0 ? '+' : ''}${formatCNY(totalPnLCNY)}`}
+          value={mask(`${totalPnLCNY >= 0 ? '+' : ''}${formatCompactCNY(totalPnLCNY)}`)}
+          valueTitle={mask(`${totalPnLCNY >= 0 ? '+' : ''}${formatCNY(totalPnLCNY)}`)}
           subtitle={formatPercent(pnlPercent)}
           icon={totalPnLCNY >= 0 ? TrendingUp : TrendingDown}
           variant={pnlVariant}
         />
         <StatCard
           title="投入本金"
-          value={formatCompactCNY(totalCostCNY)}
-          valueTitle={formatCNY(totalCostCNY)}
+          value={mask(formatCompactCNY(totalCostCNY))}
+          valueTitle={mask(formatCNY(totalCostCNY))}
           icon={DollarSign}
         />
         <StatCard
@@ -481,16 +483,16 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">期权市值</div>
-              <div className="mt-1 font-mono text-base text-white" title={formatCNY(optionMarketValueCNY)}>{formatCompactCNY(optionMarketValueCNY)}</div>
+              <div className="mt-1 font-mono text-base text-white" title={mask(formatCNY(optionMarketValueCNY))}>{mask(formatCompactCNY(optionMarketValueCNY))}</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">权利金投入</div>
-              <div className="mt-1 font-mono text-base text-white" title={formatCNY(optionPremiumCNY)}>{formatCompactCNY(optionPremiumCNY)}</div>
+              <div className="mt-1 font-mono text-base text-white" title={mask(formatCNY(optionPremiumCNY))}>{mask(formatCompactCNY(optionPremiumCNY))}</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">期权总盈亏</div>
-              <div className={`mt-1 font-mono text-base ${optionTotalPnLCNY >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`} title={`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCNY(optionTotalPnLCNY)}`}>
-                {optionTotalPnLCNY >= 0 ? '+' : ''}{formatCompactCNY(optionTotalPnLCNY)}
+              <div className={`mt-1 font-mono text-base ${optionTotalPnLCNY >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`} title={mask(`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCNY(optionTotalPnLCNY)}`)}>
+                {mask(`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCompactCNY(optionTotalPnLCNY)}`)}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
                 {optionPnLRate === null ? '—' : formatPercent(optionPnLRate)}
@@ -498,7 +500,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
               <div className="text-xs text-muted-foreground">保证金占用</div>
-              <div className="mt-1 font-mono text-base text-white">{optionMarginUSD > 0 ? formatCompactMoney(optionMarginUSD, 'USD') : '—'}</div>
+              <div className="mt-1 font-mono text-base text-white">{optionMarginUSD > 0 ? mask(formatCompactMoney(optionMarginUSD, 'USD')) : '—'}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">从备注 margin_usd 读取</div>
             </div>
             <div className="rounded-lg border border-border/40 bg-background/40 p-3">
