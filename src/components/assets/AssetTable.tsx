@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Download,
   Eye,
   Filter,
   Loader2,
@@ -548,6 +549,42 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     })
   }
 
+  function exportCSV() {
+    const allGroups = groupedByDisplay.flatMap((dg) => dg.groups)
+    const headers = ['标的', '分类', '货币', '数量', '均价', '现价', '市值', '市值(CNY)', '成本', '盈亏额', '盈亏率', '分红', '年化收益率', '首次买入日', '持有天数']
+    const rows = allGroups.map((g) => {
+      const mvCNY = toCNY(g.totalMV, g.currency, rates)
+      const rate = pnlRate(g)
+      return [
+        g.symbol,
+        CATEGORY_LABELS[g.category] ?? g.category,
+        g.currency,
+        g.totalQuantity,
+        g.weightedCostBasis.toFixed(4),
+        g.currentPrice.toFixed(4),
+        g.totalMV.toFixed(2),
+        mvCNY.toFixed(2),
+        g.totalCost.toFixed(2),
+        g.totalPnL.toFixed(2),
+        rate != null ? `${(rate * 100).toFixed(2)}%` : '',
+        g.totalDividends.toFixed(2),
+        g.annReturn != null ? `${(g.annReturn * 100).toFixed(2)}%` : '',
+        g.firstBuyDate || '',
+        g.holdingDays > 0 ? String(g.holdingDays) : '',
+      ]
+    })
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `assets-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const sheetHoldings = useMemo(() => assets.filter(isOpenPositionRecord), [assets])
   const sheetDivRecords = useMemo(
     () => assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0),
@@ -758,7 +795,17 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
               )}
             </div>
 
-            <div className="relative ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-xs text-muted-foreground"
+                onClick={exportCSV}
+              >
+                <Download className="h-3.5 w-3.5" />
+                导出
+              </Button>
+              <div className="relative">
               {colSettingsOpen && (
                 <div className="fixed inset-0 z-[5]" onClick={() => setColSettingsOpen(false)} />
               )}
@@ -813,6 +860,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                   )}
                 </div>
               )}
+              </div>
             </div>
           </div>
 

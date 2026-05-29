@@ -11,6 +11,7 @@ export { default as CalendarDays } from 'lucide-react/dist/esm/icons/calendar-da
 export { default as ChevronDown } from 'lucide-react/dist/esm/icons/chevron-down.js'
 export { default as ChevronRight } from 'lucide-react/dist/esm/icons/chevron-right.js'
 export { default as CircleDollarSign } from 'lucide-react/dist/esm/icons/circle-dollar-sign.js'
+export { default as Download } from 'lucide-react/dist/esm/icons/download.js'
 export { default as DollarSign } from 'lucide-react/dist/esm/icons/dollar-sign.js'
 export { default as Eye } from 'lucide-react/dist/esm/icons/eye.js'
 export { default as EyeOff } from 'lucide-react/dist/esm/icons/eye-off.js'
