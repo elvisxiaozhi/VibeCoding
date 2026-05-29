@@ -27,10 +27,12 @@ export function pnlValue(asset: Asset): number {
   return marketValue(asset) - costValue(asset) + dividendValue(asset)
 }
 
-/** 单条资产盈亏率 = 盈亏额 / 成本；成本为 0 返回 0 */
+/** 单条资产盈亏率 = 盈亏额 / 成本；成本为 0 返回 0；空头期权用绝对值成本做分母 */
 export function pnlRate(asset: Asset): number {
   const cost = costValue(asset)
-  return cost === 0 ? 0 : pnlValue(asset) / cost
+  if (cost === 0) return 0
+  if (asset.category === 'option' && asset.quantity < 0) return pnlValue(asset) / Math.abs(cost)
+  return pnlValue(asset) / cost
 }
 
 /** 组合总市值 */

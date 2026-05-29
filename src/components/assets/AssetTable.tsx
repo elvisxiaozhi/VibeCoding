@@ -143,8 +143,22 @@ function formatQty(qty: number, category: string): string {
 }
 
 function pnlRate(group: SymbolGroup): number | null {
+  if (group.category === 'option' && group.totalCost < 0) {
+    return group.totalPnL / Math.abs(group.totalCost)
+  }
   if (group.totalCost <= 0) return null
   return group.totalPnL / group.totalCost
+}
+
+function parseMarginUSD(note: string | undefined): number | null {
+  if (!note) return null
+  const m = note.match(/margin[=:](\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[1]) : null
+}
+
+function daysToExpiry(expiryDate: string | undefined): number | null {
+  if (!expiryDate) return null
+  return Math.max(0, Math.floor((new Date(expiryDate).getTime() - Date.now()) / 86400000))
 }
 
 function recordLabel(record: Asset): string {
@@ -976,7 +990,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 </div>
                                 <div className={`mt-1 font-mono ${group.category === 'option' ? (isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]') : 'text-white'}`}>
                                   {group.category === 'option' && !isClosed
-                                    ? `${groupPnlRate !== null ? formatPercent(groupPnlRate) : '—'} / ${group.expiryDate ? group.expiryDate.slice(0, 10) : '无到期日'}`
+                                    ? `${groupPnlRate !== null ? formatPercent(groupPnlRate) : '—'} / ${group.expiryDate ? `剩余 ${daysToExpiry(group.expiryDate)} 天` : '无到期日'}`
                                     : (isClosed || groupKey === 'gold' || hideAnnualizedAndHolding || group.annReturn === null
                                         ? '—'
                                         : `${formatPercent(group.annReturn)} / ${formatHoldingDays(group.holdingDays)}`)}
@@ -988,6 +1002,40 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                           {isExpanded && (
                             <div className="mt-4 space-y-4 border-t border-border/40 pt-4">
                               <div className="grid grid-cols-2 gap-3 text-xs">
+                                {group.category === 'option' ? (() => {
+                                  const lot = group.openLots[0]
+                                  const mult = lot?.contractMultiplier ?? 1
+                                  const premium = Math.abs(group.totalCost)
+                                  const closeoutCost = group.currentPrice * mult * Math.abs(group.totalQuantity)
+                                  const margin = parseMarginUSD(lot?.note)
+                                  const dte = daysToExpiry(group.expiryDate)
+                                  return <>
+                                    <div>
+                                      <div className="text-muted-foreground">合约数</div>
+                                      <div className="mt-1 font-mono text-white">{isClosed ? '—' : `${Math.abs(group.totalQuantity)} 张（空头）`}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-muted-foreground">权利金收入</div>
+                                      <div className="mt-1 font-mono text-white">{isClosed ? '—' : mask(formatMoney(premium, group.currency))}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-muted-foreground">平仓成本</div>
+                                      <div className="mt-1 font-mono text-white">{isClosed ? '—' : mask(formatMoney(closeoutCost, group.currency))}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-muted-foreground">保证金占用</div>
+                                      <div className="mt-1 font-mono text-white">{margin != null ? mask(formatMoney(margin, group.currency)) : '—'}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-muted-foreground">到期日</div>
+                                      <div className="mt-1 font-mono text-white">{group.expiryDate ?? '—'}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-muted-foreground">剩余天数</div>
+                                      <div className="mt-1 font-mono text-white">{dte != null ? `${dte} 天` : '—'}</div>
+                                    </div>
+                                  </>
+                                })() : <>
                                 <div>
                                   <div className="text-muted-foreground">数量</div>
                                   <div className="mt-1 font-mono text-white">{isClosed ? '—' : formatQty(group.totalQuantity, group.category)}</div>
@@ -1004,6 +1052,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   <div className="text-muted-foreground">现价</div>
                                   <div className="mt-1 font-mono text-white">{isClosed ? '—' : mask(formatMoney(group.currentPrice, group.currency))}</div>
                                 </div>
+                                </>}
                               </div>
 
                               <div className="space-y-2">
@@ -1131,7 +1180,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 {!hiddenCols.has('holdingDays') && (
                                   <TableCell className="text-right font-mono text-sm text-muted-foreground">
                                     {group.category === 'option' && !isClosed
-                                      ? (group.expiryDate ? group.expiryDate.slice(0, 10) : '—')
+                                      ? (group.expiryDate ? `剩余 ${daysToExpiry(group.expiryDate)} 天` : '—')
                                       : (isClosed || hideAnnualizedAndHolding ? '—' : formatHoldingDays(group.holdingDays))}
                                   </TableCell>
                                 )}
@@ -1142,6 +1191,40 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   <TableCell colSpan={visibleColumns.length} className="p-0">
                                     <div className="space-y-4 px-5 py-4">
                                       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+                                        {group.category === 'option' ? (() => {
+                                          const lot = group.openLots[0]
+                                          const mult = lot?.contractMultiplier ?? 1
+                                          const premium = Math.abs(group.totalCost)
+                                          const closeoutCost = group.currentPrice * mult * Math.abs(group.totalQuantity)
+                                          const margin = parseMarginUSD(lot?.note)
+                                          const dte = daysToExpiry(group.expiryDate)
+                                          return <>
+                                            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                              <div className="text-xs text-muted-foreground">合约数</div>
+                                              <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : `${Math.abs(group.totalQuantity)} 张`}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                              <div className="text-xs text-muted-foreground">权利金收入</div>
+                                              <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : mask(formatMoney(premium, group.currency))}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                              <div className="text-xs text-muted-foreground">平仓成本</div>
+                                              <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : mask(formatMoney(closeoutCost, group.currency))}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                              <div className="text-xs text-muted-foreground">保证金占用</div>
+                                              <div className="mt-1 font-mono text-sm text-white">{margin != null ? mask(formatMoney(margin, group.currency)) : '—'}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                              <div className="text-xs text-muted-foreground">到期日</div>
+                                              <div className="mt-1 font-mono text-sm text-white">{group.expiryDate ?? '—'}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                                              <div className="text-xs text-muted-foreground">剩余天数</div>
+                                              <div className="mt-1 font-mono text-sm text-white">{dte != null ? `${dte} 天` : '—'}</div>
+                                            </div>
+                                          </>
+                                        })() : <>
                                         <div className="rounded-lg border border-border/40 bg-background/40 p-3">
                                           <div className="text-xs text-muted-foreground">数量</div>
                                           <div className="mt-1 font-mono text-sm text-white">{isClosed ? '—' : formatQty(group.totalQuantity, group.category)}</div>
@@ -1166,6 +1249,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                           <div className="text-xs text-muted-foreground">币种</div>
                                           <div className="mt-1 font-mono text-sm text-white">{group.currency}</div>
                                         </div>
+                                        </>}
                                       </div>
 
                                       <div className="flex items-center justify-between gap-3">
