@@ -1,4 +1,7 @@
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Calendar,
   DollarSign,
   Eye,
@@ -7,7 +10,7 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import { AssetDetailSheet } from '@/components/dashboard/AssetDetailSheet'
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
@@ -24,9 +27,11 @@ import { useHistoricalRates } from '@/hooks/useHistoricalRates'
 import { useLiabilities } from '@/hooks/useLiabilities'
 import { usePriceRefresh } from '@/hooks/usePriceRefresh'
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
+import { usePanelOrder, PANEL_LABELS, type PanelId } from '@/hooks/usePanelOrder'
 import { calculateReturnAttribution } from '@/lib/attribution'
 import { contractMultiplier, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalPnLValue, xirrRate } from '@/lib/calc'
 import { usePrivacy } from '@/context/PrivacyContext'
+import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { formatCompactMoney, formatMoney, toCNY } from '@/lib/currency'
 import { calculateRiskExposure } from '@/lib/risk'
 import { CURRENCY_CODES, CURRENCY_LABELS, isCashLikeCurrencyAsset, type Asset, type OwnerType } from '@/lib/types'
@@ -109,10 +114,12 @@ function compoundAnnualized(rate: number, days: number): number | null {
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { mask } = usePrivacy()
+  const [reorderMode, setReorderMode] = useState(false)
+  const { order, updateOrder, reset: resetPanelOrder } = usePanelOrder()
   const { assets, loading, error: assetsError, refetch } = useAssets(isLoggedIn, ownerFilter)
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
-  const [includeProvidentFund, setIncludeProvidentFund] = useState(false)
-  const [includeGold, setIncludeGold] = useState(true)
+  const [includeProvidentFund, setIncludeProvidentFund] = useLocalStorage('dashboard.includeProvidentFund', false)
+  const [includeGold, setIncludeGold] = useLocalStorage('dashboard.includeGold', true)
   const [detailSymbol, setDetailSymbol] = useState<string | null>(null)
   const { rates, loading: ratesLoading } = useExchangeRates()
   const dashboardAssets = assets.filter((a) => {
@@ -442,7 +449,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             <h3 className="text-sm font-medium text-white">分币种原币年化</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">不折算人民币，用各币种自身现金流计算 XIRR</p>
           </div>
-          <div className="text-xs text-muted-foreground">现金、公积金、黄金已排除</div>
+          <div className="text-xs text-muted-foreground">现金、公积金、黄金、期权已排除</div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {currencyAnnualizedReturns.length === 0 ? (
