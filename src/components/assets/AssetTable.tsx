@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 
@@ -12,6 +12,7 @@ import {
   Download,
   Eye,
   Filter,
+  GripVertical,
   Loader2,
   Lock,
   Pencil,
@@ -49,12 +50,13 @@ import {
 } from '@/components/ui/table'
 import { useAssets } from '@/hooks/useAssets'
 import { useEditMode } from '@/hooks/useEditMode'
+import { useGroupOrder, GROUP_LABELS, type GroupId } from '@/hooks/useGroupOrder'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { ASSET_SUBCATEGORY_LABELS, ASSET_SUBCATEGORY_ORDER, classifyAssetSubcategory, type AssetSubcategory } from '@/lib/assetClassification'
 import { costValue, formatHoldingDays, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalMarketValue, totalPnLValue } from '@/lib/calc'
 import { usePrivacy } from '@/context/PrivacyContext'
 import { formatMoney, toCNY } from '@/lib/currency'
-import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, MARKET_ORDER, OWNER_LABELS, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER, MARKET_LABELS, OWNER_LABELS, isCashLikeCurrencyAsset, type Asset, type AssetCategory, type MarketType, type OwnerType } from '@/lib/types'
 
 type SortKey =
   | 'symbol'
@@ -438,6 +440,10 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const { rates } = useExchangeRates()
   const { isReadOnly } = useEditMode()
   const canEdit = isLoggedIn && !isReadOnly
+  const { order: savedGroupOrder, updateOrder: updateGroupOrder, reset: resetGroupOrder } = useGroupOrder()
+  const [groupReorderMode, setGroupReorderMode] = useState(false)
+  const [dragOverGroupId, setDragOverGroupId] = useState<GroupId | null>(null)
+  const dragGroupRef = useRef<GroupId | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('symbol')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -474,7 +480,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
   // 按展示板块分组：现金和公积金独立展示，其余资产按市场展示。
   const groupedByDisplay = useMemo<DisplayGroup[]>(() => {
-    const groupOrder: DisplayGroupKey[] = [...MARKET_ORDER, 'cash', 'provident_fund']
+    const groupOrder = savedGroupOrder as DisplayGroupKey[]
     const groupMap = new Map<DisplayGroupKey, Asset[]>()
     for (const key of groupOrder) groupMap.set(key, [])
     for (const a of assets) {
@@ -504,7 +510,37 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         }
       })
       .filter((g) => g.groups.length > 0)
-  }, [assets, sortKey, sortDir, search, categoryFilters])
+  }, [assets, sortKey, sortDir, search, categoryFilters, savedGroupOrder])
+
+  const visibleGroupKeys = groupedByDisplay.map(g => g.key as GroupId)
+
+  const handleMoveGroup = (key: GroupId, direction: 'up' | 'down') => {
+    const visIdx = visibleGroupKeys.indexOf(key)
+    if (direction === 'up' && visIdx <= 0) return
+    if (direction === 'down' && visIdx >= visibleGroupKeys.length - 1) return
+    const newVisKeys = [...visibleGroupKeys]
+    const swapWith = direction === 'up' ? visIdx - 1 : visIdx + 1
+    ;[newVisKeys[visIdx], newVisKeys[swapWith]] = [newVisKeys[swapWith], newVisKeys[visIdx]]
+    const newOrder = [...savedGroupOrder]
+    const visPositions = savedGroupOrder.map((k, idx) => ({ k, idx })).filter(({ k }) => visibleGroupKeys.includes(k))
+    newVisKeys.forEach((k, i) => { newOrder[visPositions[i].idx] = k })
+    updateGroupOrder(newOrder)
+  }
+
+  const handleDropGroup = (targetKey: GroupId) => {
+    const sourceKey = dragGroupRef.current
+    if (!sourceKey || sourceKey === targetKey) return
+    const srcIdx = visibleGroupKeys.indexOf(sourceKey)
+    const tgtIdx = visibleGroupKeys.indexOf(targetKey)
+    if (srcIdx === -1 || tgtIdx === -1) return
+    const newVisKeys = [...visibleGroupKeys]
+    newVisKeys.splice(srcIdx, 1)
+    newVisKeys.splice(tgtIdx, 0, sourceKey)
+    const newOrder = [...savedGroupOrder]
+    const visPositions = savedGroupOrder.map((k, idx) => ({ k, idx })).filter(({ k }) => visibleGroupKeys.includes(k))
+    newVisKeys.forEach((k, i) => { newOrder[visPositions[i].idx] = k })
+    updateGroupOrder(newOrder)
+  }
 
   function toggleExpand(symbol: string) {
     setExpanded((prev) => {
@@ -793,6 +829,15 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
               <Button
                 variant="ghost"
                 size="sm"
+                className={`h-8 gap-1.5 text-xs ${groupReorderMode ? 'text-orange-400' : 'text-muted-foreground'}`}
+                onClick={() => setGroupReorderMode(m => !m)}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                {groupReorderMode ? '完成排版' : '自定义排版'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-8 gap-1.5 text-xs text-muted-foreground"
                 onClick={exportCSV}
               >
@@ -864,6 +909,54 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                 <Plus className="mr-2 h-4 w-4" />
                 新增资产
               </Button>
+            </div>
+          )}
+
+          {groupReorderMode && (
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3">
+              <p className="mb-2 text-xs text-orange-400/70">点击箭头或拖拽调整板块显示顺序</p>
+              <div className="space-y-1">
+                {visibleGroupKeys.map((key, visIdx) => (
+                  <div
+                    key={key}
+                    draggable
+                    onDragStart={() => { dragGroupRef.current = key }}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverGroupId(key) }}
+                    onDrop={(e) => { e.preventDefault(); handleDropGroup(key); setDragOverGroupId(null) }}
+                    onDragEnd={() => { dragGroupRef.current = null; setDragOverGroupId(null) }}
+                    className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors ${
+                      dragOverGroupId === key
+                        ? 'border-orange-500/50 bg-orange-500/10'
+                        : 'border-transparent bg-background/50'
+                    }`}
+                  >
+                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/40 active:cursor-grabbing" />
+                    <span className="flex-1 text-sm text-white">{GROUP_LABELS[key]}</span>
+                    <div className="flex gap-0.5">
+                      <button
+                        onClick={() => handleMoveGroup(key, 'up')}
+                        disabled={visIdx === 0}
+                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-white disabled:cursor-default disabled:opacity-30"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleMoveGroup(key, 'down')}
+                        disabled={visIdx === visibleGroupKeys.length - 1}
+                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-white disabled:cursor-default disabled:opacity-30"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={resetGroupOrder}
+                className="mt-2 text-xs text-muted-foreground transition-colors hover:text-white"
+              >
+                恢复默认顺序
+              </button>
             </div>
           )}
 
