@@ -1,5 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 
+import { useLocalStorage } from '@/hooks/useLocalStorage'
+
 import {
   ArrowDown,
   ArrowUp,
@@ -171,12 +173,23 @@ function recordLabel(record: Asset): string {
   return '买入'
 }
 
-function recordValue(record: Asset): string {
-  if (record.quantity < 0) return `-${formatQty(Math.abs(record.quantity), record.category)}`
-  if (record.quantity === 0 && (record.dividends ?? 0) > 0) {
-    return `+${formatMoney(record.dividends ?? 0, record.currency)}`
+function recordAmounts(record: Asset): { primary: string; secondary: string | null } {
+  if (record.quantity < 0) {
+    const qty = Math.abs(record.quantity)
+    const proceeds = formatMoney(record.currentPrice * qty, record.currency)
+    const cost = formatMoney(record.costBasis * qty, record.currency)
+    return {
+      primary: proceeds,
+      secondary: `${formatQty(qty, record.category)} 份 · 成本 ${cost}`,
+    }
   }
-  return formatQty(record.quantity, record.category)
+  if (record.quantity === 0 && (record.dividends ?? 0) > 0) {
+    return { primary: `+${formatMoney(record.dividends ?? 0, record.currency)}`, secondary: null }
+  }
+  return {
+    primary: formatMoney(record.costBasis * record.quantity, record.currency),
+    secondary: `${formatQty(record.quantity, record.category)} 份`,
+  }
 }
 
 function isOpenPositionRecord(asset: Asset): boolean {
@@ -206,7 +219,7 @@ function BalanceAssetPanel({
   const totalCNY = groups.reduce((sum, group) => sum + toCNY(group.totalMV, group.currency, rates), 0)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-baseline sm:justify-between">
         <h3 className="text-sm font-semibold text-white">{title}</h3>
         <div className="text-xs text-muted-foreground">
@@ -214,63 +227,44 @@ function BalanceAssetPanel({
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="rounded-xl border border-border/50 bg-card divide-y divide-border/30">
         {groups.map((group) => {
           const asset = representativeAsset(group)
           const updatedAt = asset?.updatedAt?.slice(0, 10) ?? '—'
-          const recordCount = group.allRecords.length
 
           return (
-            <div key={group.symbol} className="rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-white">{group.symbol}</div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{balanceOwners(group)}</span>
-                    <span>{group.currency}</span>
-                    <span>{recordCount} 条记录</span>
-                  </div>
+            <div key={group.symbol} className="group flex items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-white">{group.symbol}</div>
+                <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                  <span>{balanceOwners(group)}</span>
+                  <span>{group.currency}</span>
+                  {asset?.note && <span className="truncate max-w-[160px]">{asset.note}</span>}
                 </div>
-                <div className="text-left sm:text-right">
-                  <div className="text-xs text-muted-foreground">当前余额</div>
-                  <div className="mt-1 font-mono text-2xl text-white">
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-right">
+                  <div className="font-mono text-sm text-white">
                     {mask(formatMoney(group.totalMV, group.currency))}
                   </div>
                   {group.currency !== 'CNY' && (
-                    <div className="mt-1 text-[11px] text-muted-foreground">
+                    <div className="text-[10px] text-muted-foreground">
                       ≈ {mask(formatMoney(toCNY(group.totalMV, group.currency, rates), 'CNY'))}
                     </div>
                   )}
+                  <div className="text-[10px] text-muted-foreground">{updatedAt}</div>
                 </div>
+                {canEdit && asset && (
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-white" onClick={() => onEdit(asset)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-[#22c55e]" onClick={() => onDelete(asset)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
-                <div className="rounded-lg border border-border/30 bg-background/35 p-3">
-                  <div className="text-muted-foreground">账户类型</div>
-                  <div className="mt-1 text-sm text-white">{CATEGORY_LABELS[group.category as AssetCategory]}</div>
-                </div>
-                <div className="rounded-lg border border-border/30 bg-background/35 p-3">
-                  <div className="text-muted-foreground">记录数</div>
-                  <div className="mt-1 font-mono text-sm text-white">{recordCount}</div>
-                </div>
-                <div className="rounded-lg border border-border/30 bg-background/35 p-3">
-                  <div className="text-muted-foreground">最近更新</div>
-                  <div className="mt-1 font-mono text-sm text-white">{updatedAt}</div>
-                </div>
-              </div>
-
-              {asset?.note && (
-                <div className="mt-3 rounded-lg border border-border/30 bg-background/25 px-3 py-2 text-xs text-muted-foreground">
-                  {asset.note}
-                </div>
-              )}
-
-              {canEdit && asset && (
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onEdit(asset)}>编辑</Button>
-                  <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => onDelete(asset)}>删除</Button>
-                </div>
-              )}
             </div>
           )
         })}
@@ -450,7 +444,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const [viewMode, setViewMode] = useState<'holding' | 'cleared' | 'liabilities'>('holding')
 
   const [search, setSearch] = useState('')
-  const [categoryFilters, setCategoryFilters] = useState<Set<AssetCategory>>(new Set())
+  const [_categoryFilters, _setCategoryFilters] = useLocalStorage<AssetCategory[]>('assetTable.categoryFilters', [])
+  const categoryFilters = new Set(_categoryFilters)
+  function setCategoryFilters(next: Set<AssetCategory>) { _setCategoryFilters(Array.from(next)) }
   const [hiddenCols, setHiddenCols] = useState<Set<SortKey>>(() => {
     try {
       const saved = localStorage.getItem('assetTableHiddenCols')
@@ -765,14 +761,12 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                   <button
                     key={cat}
                     type="button"
-                    onClick={() =>
-                      setCategoryFilters((prev) => {
-                        const next = new Set(prev)
-                        if (next.has(cat)) next.delete(cat)
-                        else next.add(cat)
-                        return next
-                      })
-                    }
+                    onClick={() => {
+                      const next = new Set(categoryFilters)
+                      if (next.has(cat)) next.delete(cat)
+                      else next.add(cat)
+                      setCategoryFilters(next)
+                    }}
                     className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
                       active
                         ? 'bg-white/15 text-white ring-1 ring-white/20'
@@ -1106,11 +1100,16 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                               <div className="space-y-2">
                                 <div className="text-xs font-medium text-white">最近交易</div>
                                 {visibleRecords.map((record) => (
-                                  <div key={record.id} className="flex items-center justify-between gap-3 text-xs">
+                                  <div key={record.id} className="flex items-start justify-between gap-3 text-xs">
                                     <div className="min-w-0 truncate text-muted-foreground">
                                       {record.purchasedAt.slice(0, 10)} {recordLabel(record)}
                                     </div>
-                                    <div className="shrink-0 font-mono text-white">{mask(recordValue(record))}</div>
+                                    <div className="shrink-0 text-right">
+                                      {(() => { const { primary, secondary } = recordAmounts(record); return (<>
+                                        <div className="font-mono text-white">{mask(primary)}</div>
+                                        {secondary && <div className="mt-0.5 font-mono text-muted-foreground/70">{secondary}</div>}
+                                      </>); })()}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1318,12 +1317,17 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
                                       <div className="space-y-2">
                                         {visibleDetailRecords.map((record) => (
-                                          <div key={record.id} className="flex items-center justify-between gap-4 rounded-lg border border-border/30 bg-background/25 px-3 py-2 text-xs">
+                                          <div key={record.id} className="flex items-start justify-between gap-4 rounded-lg border border-border/30 bg-background/25 px-3 py-2 text-xs">
                                             <div className="min-w-0 truncate text-muted-foreground">
                                               {record.purchasedAt.slice(0, 10)} {recordLabel(record)}
                                               {record.note && <span className="ml-2 text-muted-foreground/70">{record.note}</span>}
                                             </div>
-                                            <div className="shrink-0 font-mono text-white">{mask(recordValue(record))}</div>
+                                            <div className="shrink-0 text-right">
+                                              {(() => { const { primary, secondary } = recordAmounts(record); return (<>
+                                                <div className="font-mono text-white">{mask(primary)}</div>
+                                                {secondary && <div className="mt-0.5 font-mono text-muted-foreground/70">{secondary}</div>}
+                                              </>); })()}
+                                            </div>
                                           </div>
                                         ))}
                                       </div>
@@ -1405,6 +1409,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         sellRecords={sheetSellRecords}
         summaries={sheetSummaries}
         rates={rates}
+        onAddTransaction={addAsset}
       />
     </div>
   )

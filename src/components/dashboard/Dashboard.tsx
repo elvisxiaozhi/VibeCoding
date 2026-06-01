@@ -116,7 +116,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { mask } = usePrivacy()
   const [reorderMode, setReorderMode] = useState(false)
   const { order, updateOrder, reset: resetPanelOrder } = usePanelOrder()
-  const { assets, loading, error: assetsError, refetch } = useAssets(isLoggedIn, ownerFilter)
+  const { assets, loading, error: assetsError, refetch, addAsset } = useAssets(isLoggedIn, ownerFilter)
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
   const [includeProvidentFund, setIncludeProvidentFund] = useLocalStorage('dashboard.includeProvidentFund', false)
   const [includeGold, setIncludeGold] = useLocalStorage('dashboard.includeGold', true)
@@ -340,6 +340,177 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     )
   }
 
+  const panelMap: Record<PanelId, ReactNode> = {
+    fire: <FireGoalPanel netWorthCNY={netWorthCNY} annReturn={annReturn} />,
+    currency_ann: (
+      <div className="rounded-xl border border-border/50 bg-card px-4 py-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-white">分币种原币年化</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">不折算人民币，用各币种自身现金流计算 XIRR</p>
+          </div>
+          <div className="text-xs text-muted-foreground">现金、公积金、黄金、期权已排除</div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {currencyAnnualizedReturns.length === 0 ? (
+            <div className="rounded-lg border border-border/40 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
+              暂无可计算的币种年化样本
+            </div>
+          ) : currencyAnnualizedReturns.map((item) => {
+            const isPositive = (item.value ?? 0) >= 0
+            return (
+              <div key={item.currency} className="rounded-lg border border-border/40 bg-background/40 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-white">{item.label}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{item.currency} · {item.assetCount} 个持仓</div>
+                  </div>
+                  <div className={`font-mono text-lg ${item.value === null ? 'text-muted-foreground' : isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+                    {item.value === null ? '—' : formatPercent(item.value)}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    ),
+    option: optionRecords.length > 0 ? (
+      <div className="rounded-xl border border-pink-500/25 bg-card px-4 py-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-white">期权表现</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">短周期高波动资产，年化仅作为参考，不纳入主账户年化</p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {optionHoldings.length} 个持仓 · {optionSellRecords.length} 条卖出记录
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-b border-border/40 pb-3 text-xs text-muted-foreground">
+          <span>权利金 <span className="font-mono text-white" title={mask(formatCNY(optionPremiumCNY))}>{mask(formatCompactCNY(optionPremiumCNY))}</span></span>
+          <span>期权市值 <span className="font-mono text-white" title={mask(formatCNY(optionMarketValueCNY))}>{mask(formatCompactCNY(optionMarketValueCNY))}</span></span>
+          <span>保证金 <span className="font-mono text-white">{optionMarginUSD > 0 ? mask(formatCompactMoney(optionMarginUSD, 'USD')) : '—'}</span></span>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">期权总盈亏</div>
+            <div
+              className={`mt-1 font-mono text-2xl ${optionTotalPnLCNY >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
+              title={mask(`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCNY(optionTotalPnLCNY)}`)}
+            >
+              {mask(`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCompactCNY(optionTotalPnLCNY)}`)}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+              <span>{optionPnLRate === null ? '收益率 —' : formatPercent(optionPnLRate)}</span>
+              {optionShortAnnualized !== null && (
+                <span>· XIRR {formatPercent(optionShortAnnualized)}</span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">当前保证金收益率</div>
+            <div className={`mt-1 font-mono text-2xl ${optionMarginReturn === null ? 'text-muted-foreground' : optionMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+              {optionMarginReturn === null ? '—' : formatPercent(optionMarginReturn)}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {optionMarginAnnualized === null ? '年化 —' : `年化 ${formatPercent(optionMarginAnnualized)}`}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+            <div className="text-xs text-muted-foreground">到期最大保证金收益</div>
+            <div className={`mt-1 font-mono text-2xl ${optionMaxMarginReturn === null ? 'text-muted-foreground' : optionMaxMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+              {optionMaxMarginReturn === null ? '—' : formatPercent(optionMaxMarginReturn)}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {optionMaxMarginAnnualized === null ? '到期年化 —' : `到期年化 ${formatPercent(optionMaxMarginAnnualized)}`}
+            </div>
+          </div>
+        </div>
+        {(() => {
+          const days = optionDaysToExpiry
+          const expired = days !== null && days < 0
+          const urgent = days !== null && days >= 0 && days <= 7
+          const warning = days !== null && days > 7 && days <= 30
+          const colorClass = expired
+            ? 'border-red-500/40 bg-red-500/10 text-red-400'
+            : urgent
+            ? 'border-orange-500/40 bg-orange-500/10 text-orange-400'
+            : warning
+            ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400'
+            : nextOptionExpiry
+            ? 'border-green-500/40 bg-green-500/10 text-green-400'
+            : 'border-border/40 bg-background/40 text-muted-foreground'
+          return (
+            <div className={`mt-3 flex items-center justify-between rounded-lg border px-3 py-2.5 ${colorClass}`}>
+              <span className="text-xs">最近到期</span>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-mono">{nextOptionExpiry ?? '—'}</span>
+                <span className="text-xs">
+                  {days === null ? '暂无到期日' : days < 0 ? `已过期 ${Math.abs(days)} 天` : `剩余 ${days} 天`}
+                </span>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+    ) : null,
+    snapshot_structure: (
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <PortfolioSnapshotPanel
+          snapshots={snapshots}
+          selectedSnapshot={selectedSnapshot}
+          loading={snapshotsLoading}
+          creating={snapshotCreating}
+          isLoggedIn={isLoggedIn}
+          compact
+          onCreateToday={createTodaySnapshot}
+          onSelectSnapshot={selectSnapshot}
+        />
+        <AssetStructurePanel
+          holdings={holdings}
+          totalValueCNY={totalValueCNY}
+          assetValueCNY={(asset) => assetMVInCNY(asset, rates)}
+        />
+      </div>
+    ),
+    performance: (
+      <PerformancePanel
+        attribution={returnAttribution}
+        historicalRatesLoading={histLoading}
+        summaries={symbolSummaries}
+        onSymbolClick={setDetailSymbol}
+      />
+    ),
+    risk: <RiskExposurePanel risk={riskExposure} />,
+    dividend: (
+      <DividendIncomePanel
+        divRecords={divRecords}
+        holdings={holdings}
+        rates={rates}
+      />
+    ),
+  }
+
+  const visiblePanels: { id: PanelId; content: ReactNode }[] = order
+    .map(id => ({ id, content: panelMap[id] }))
+    .filter(item => item.content !== null && item.content !== undefined)
+
+  const handleMoveVisible = (id: PanelId, direction: 'up' | 'down') => {
+    const visIds = order.filter(pid => panelMap[pid] != null)
+    const visIdx = visIds.indexOf(id)
+    if (direction === 'up' && visIdx <= 0) return
+    if (direction === 'down' && visIdx >= visIds.length - 1) return
+    const newVisIds = [...visIds]
+    const swapWith = direction === 'up' ? visIdx - 1 : visIdx + 1
+    ;[newVisIds[visIdx], newVisIds[swapWith]] = [newVisIds[swapWith], newVisIds[visIdx]]
+    const newOrder = [...order]
+    const visPositions = order.map((pid, idx) => ({ pid, idx })).filter(({ pid }) => visIds.includes(pid))
+    newVisIds.forEach((pid, i) => {
+      newOrder[visPositions[i].idx] = pid
+    })
+    updateOrder(newOrder)
+  }
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* 游客模式 banner */}
@@ -441,162 +612,58 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         />
       </div>
 
-      <FireGoalPanel netWorthCNY={netWorthCNY} annReturn={annReturn} />
-
-      <div className="rounded-xl border border-border/50 bg-card px-4 py-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-          <div>
-            <h3 className="text-sm font-medium text-white">分币种原币年化</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">不折算人民币，用各币种自身现金流计算 XIRR</p>
-          </div>
-          <div className="text-xs text-muted-foreground">现金、公积金、黄金、期权已排除</div>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {currencyAnnualizedReturns.length === 0 ? (
-            <div className="rounded-lg border border-border/40 bg-background/40 px-3 py-4 text-sm text-muted-foreground">
-              暂无可计算的币种年化样本
-            </div>
-          ) : currencyAnnualizedReturns.map((item) => {
-            const isPositive = (item.value ?? 0) >= 0
-            return (
-              <div key={item.currency} className="rounded-lg border border-border/40 bg-background/40 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-white">{item.label}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{item.currency} · {item.assetCount} 个持仓</div>
-                  </div>
-                  <div className={`font-mono text-lg ${item.value === null ? 'text-muted-foreground' : isPositive ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                    {item.value === null ? '—' : formatPercent(item.value)}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+      <div className="flex justify-end">
+        <button
+          onClick={() => setReorderMode(m => !m)}
+          className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+            reorderMode
+              ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'
+              : 'border-transparent text-muted-foreground hover:text-white'
+          }`}
+        >
+          <ArrowUpDown className="h-3.5 w-3.5" />
+          {reorderMode ? '完成排版' : '自定义排版'}
+        </button>
       </div>
 
-      {optionRecords.length > 0 && (
-        <div className="rounded-xl border border-pink-500/25 bg-card px-4 py-4">
-          {/* 标题 */}
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-white">期权表现</h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">短周期高波动资产，年化仅作为参考，不纳入主账户年化</p>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {optionHoldings.length} 个持仓 · {optionSellRecords.length} 条卖出记录
-            </div>
-          </div>
-
-          {/* 段1: 仓位摘要横排 */}
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-b border-border/40 pb-3 text-xs text-muted-foreground">
-            <span>权利金 <span className="font-mono text-white" title={mask(formatCNY(optionPremiumCNY))}>{mask(formatCompactCNY(optionPremiumCNY))}</span></span>
-            <span>期权市值 <span className="font-mono text-white" title={mask(formatCNY(optionMarketValueCNY))}>{mask(formatCompactCNY(optionMarketValueCNY))}</span></span>
-            <span>保证金 <span className="font-mono text-white">{optionMarginUSD > 0 ? mask(formatCompactMoney(optionMarginUSD, 'USD')) : '—'}</span></span>
-          </div>
-
-          {/* 段2: 收益三卡片 */}
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-              <div className="text-xs text-muted-foreground">期权总盈亏</div>
-              <div
-                className={`mt-1 font-mono text-2xl ${optionTotalPnLCNY >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}
-                title={mask(`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCNY(optionTotalPnLCNY)}`)}
-              >
-                {mask(`${optionTotalPnLCNY >= 0 ? '+' : ''}${formatCompactCNY(optionTotalPnLCNY)}`)}
-              </div>
-              <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-                <span>{optionPnLRate === null ? '收益率 —' : formatPercent(optionPnLRate)}</span>
-                {optionShortAnnualized !== null && (
-                  <span>· XIRR {formatPercent(optionShortAnnualized)}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-              <div className="text-xs text-muted-foreground">当前保证金收益率</div>
-              <div className={`mt-1 font-mono text-2xl ${optionMarginReturn === null ? 'text-muted-foreground' : optionMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                {optionMarginReturn === null ? '—' : formatPercent(optionMarginReturn)}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {optionMarginAnnualized === null ? '年化 —' : `年化 ${formatPercent(optionMarginAnnualized)}`}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-              <div className="text-xs text-muted-foreground">到期最大保证金收益</div>
-              <div className={`mt-1 font-mono text-2xl ${optionMaxMarginReturn === null ? 'text-muted-foreground' : optionMaxMarginReturn >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
-                {optionMaxMarginReturn === null ? '—' : formatPercent(optionMaxMarginReturn)}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {optionMaxMarginAnnualized === null ? '到期年化 —' : `到期年化 ${formatPercent(optionMaxMarginAnnualized)}`}
-              </div>
-            </div>
-          </div>
-
-          {/* 段3: 到期 banner */}
-          {(() => {
-            const days = optionDaysToExpiry
-            const expired = days !== null && days < 0
-            const urgent = days !== null && days >= 0 && days <= 7
-            const warning = days !== null && days > 7 && days <= 30
-            const colorClass = expired
-              ? 'border-red-500/40 bg-red-500/10 text-red-400'
-              : urgent
-              ? 'border-orange-500/40 bg-orange-500/10 text-orange-400'
-              : warning
-              ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400'
-              : nextOptionExpiry
-              ? 'border-green-500/40 bg-green-500/10 text-green-400'
-              : 'border-border/40 bg-background/40 text-muted-foreground'
-            return (
-              <div className={`mt-3 flex items-center justify-between rounded-lg border px-3 py-2.5 ${colorClass}`}>
-                <span className="text-xs">最近到期</span>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="font-mono">{nextOptionExpiry ?? '—'}</span>
-                  <span className="text-xs">
-                    {days === null ? '暂无到期日' : days < 0 ? `已过期 ${Math.abs(days)} 天` : `剩余 ${days} 天`}
-                  </span>
+      {reorderMode && (
+        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3">
+          <p className="mb-2 text-xs text-orange-400/70">点击箭头调整面板显示顺序</p>
+          <div className="space-y-1">
+            {visiblePanels.map(({ id }, visIdx) => (
+              <div key={id} className="flex items-center justify-between rounded-md bg-background/50 px-3 py-2">
+                <span className="text-sm text-white">{PANEL_LABELS[id]}</span>
+                <div className="flex gap-0.5">
+                  <button
+                    onClick={() => handleMoveVisible(id, 'up')}
+                    disabled={visIdx === 0}
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-white disabled:cursor-default disabled:opacity-30"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveVisible(id, 'down')}
+                    disabled={visIdx === visiblePanels.length - 1}
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-white disabled:cursor-default disabled:opacity-30"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
-            )
-          })()}
+            ))}
+          </div>
+          <button
+            onClick={resetPanelOrder}
+            className="mt-2 text-xs text-muted-foreground transition-colors hover:text-white"
+          >
+            恢复默认顺序
+          </button>
         </div>
       )}
 
-      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-        <PortfolioSnapshotPanel
-          snapshots={snapshots}
-          selectedSnapshot={selectedSnapshot}
-          loading={snapshotsLoading}
-          creating={snapshotCreating}
-          isLoggedIn={isLoggedIn}
-          compact
-          onCreateToday={createTodaySnapshot}
-          onSelectSnapshot={selectSnapshot}
-        />
-
-        <AssetStructurePanel
-          holdings={holdings}
-          totalValueCNY={totalValueCNY}
-          assetValueCNY={(asset) => assetMVInCNY(asset, rates)}
-        />
-      </div>
-
-      <PerformancePanel
-        attribution={returnAttribution}
-        historicalRatesLoading={histLoading}
-        summaries={symbolSummaries}
-        onSymbolClick={setDetailSymbol}
-      />
-
-      <RiskExposurePanel risk={riskExposure} />
-
-      <DividendIncomePanel
-        divRecords={divRecords}
-        holdings={holdings}
-        rates={rates}
-      />
+      {visiblePanels.map(({ id, content }) => (
+        <div key={id}>{content}</div>
+      ))}
 
       <AssetDetailSheet
         symbol={detailSymbol}
@@ -608,6 +675,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         sellRecords={sellRecords}
         summaries={symbolSummaries}
         rates={rates}
+        onAddTransaction={addAsset}
       />
     </div>
   )

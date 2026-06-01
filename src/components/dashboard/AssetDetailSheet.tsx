@@ -6,6 +6,8 @@ import { formatMoney, toCNY } from '@/lib/currency'
 import { contractMultiplier, costValue, marketValue } from '@/lib/calc'
 import { CATEGORY_LABELS, type Asset, type AssetCategory } from '@/lib/types'
 import type { PerformanceSummary } from '@/components/dashboard/PerformancePanel'
+import { TransactionEntry } from '@/components/dashboard/TransactionEntry'
+import type { AssetDraft } from '@/hooks/useAssets'
 import { cn } from '@/lib/utils'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -96,6 +98,7 @@ interface AssetDetailSheetProps {
   sellRecords: Asset[]
   summaries: PerformanceSummary[]
   rates: Record<string, number>
+  onAddTransaction?: (draft: AssetDraft) => Promise<boolean>
 }
 
 export function AssetDetailSheet({
@@ -108,6 +111,7 @@ export function AssetDetailSheet({
   sellRecords,
   summaries,
   rates,
+  onAddTransaction,
 }: AssetDetailSheetProps) {
   const { mask } = usePrivacy()
   useEffect(() => {
@@ -288,6 +292,11 @@ export function AssetDetailSheet({
               </div>
             )}
           </div>
+
+          {/* Quick transaction entry */}
+          {onAddTransaction && ref && (
+            <TransactionEntry refAsset={ref} onAdd={onAddTransaction} />
+          )}
         </div>
       </div>
     </>

@@ -1,5 +1,7 @@
 import { Fragment, useState } from 'react'
 
+import { useLocalStorage } from '@/hooks/useLocalStorage'
+
 import { Loader2 } from 'lucide-react'
 
 import { AssetTable } from '@/components/assets/AssetTable'
@@ -35,7 +37,7 @@ function PageContent({ page, isLoggedIn, ownerFilter }: { page: PageKey; isLogge
 
 function App() {
   const [page, setPage] = useState<PageKey>('overview')
-  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all')
+  const [ownerFilter, setOwnerFilter] = useLocalStorage<OwnerFilter>('ownerFilter', 'all')
   const { user, loading, isLoggedIn, login, logout } = useAuth()
   useTheme()
 
