@@ -34,4 +34,5 @@ export { default as TrendingUp } from 'lucide-react/dist/esm/icons/trending-up.j
 export { default as Unlock } from 'lucide-react/dist/esm/icons/unlock.js'
 export { default as User } from 'lucide-react/dist/esm/icons/user.js'
 export { default as Wallet } from 'lucide-react/dist/esm/icons/wallet.js'
+export { default as GripVertical } from 'lucide-react/dist/esm/icons/grip-vertical.js'
 export { default as X } from 'lucide-react/dist/esm/icons/x.js'

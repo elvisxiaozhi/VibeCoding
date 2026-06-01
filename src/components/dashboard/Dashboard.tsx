@@ -5,12 +5,13 @@ import {
   Calendar,
   DollarSign,
   Eye,
+  GripVertical,
   Loader2,
   TrendingDown,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 
 import { AssetDetailSheet } from '@/components/dashboard/AssetDetailSheet'
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
@@ -115,6 +116,8 @@ function compoundAnnualized(rate: number, days: number): number | null {
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { mask } = usePrivacy()
   const [reorderMode, setReorderMode] = useState(false)
+  const [dragOverId, setDragOverId] = useState<PanelId | null>(null)
+  const dragItemRef = useRef<PanelId | null>(null)
   const { order, updateOrder, reset: resetPanelOrder } = usePanelOrder()
   const { assets, loading, error: assetsError, refetch, addAsset } = useAssets(isLoggedIn, ownerFilter)
   const { liabilities, loading: liabilitiesLoading } = useLiabilities(isLoggedIn, ownerFilter)
@@ -511,6 +514,24 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     updateOrder(newOrder)
   }
 
+  const handleDrop = (targetId: PanelId) => {
+    const sourceId = dragItemRef.current
+    if (!sourceId || sourceId === targetId) return
+    const visIds = visiblePanels.map(p => p.id)
+    const srcIdx = visIds.indexOf(sourceId)
+    const tgtIdx = visIds.indexOf(targetId)
+    if (srcIdx === -1 || tgtIdx === -1) return
+    const newVisIds = [...visIds]
+    newVisIds.splice(srcIdx, 1)
+    newVisIds.splice(tgtIdx, 0, sourceId)
+    const newOrder = [...order]
+    const visPositions = order.map((pid, idx) => ({ pid, idx })).filter(({ pid }) => visIds.includes(pid))
+    newVisIds.forEach((pid, i) => {
+      newOrder[visPositions[i].idx] = pid
+    })
+    updateOrder(newOrder)
+  }
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* 游客模式 banner */}
@@ -631,8 +652,21 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           <p className="mb-2 text-xs text-orange-400/70">点击箭头调整面板显示顺序</p>
           <div className="space-y-1">
             {visiblePanels.map(({ id }, visIdx) => (
-              <div key={id} className="flex items-center justify-between rounded-md bg-background/50 px-3 py-2">
-                <span className="text-sm text-white">{PANEL_LABELS[id]}</span>
+              <div
+                key={id}
+                draggable
+                onDragStart={() => { dragItemRef.current = id }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverId(id) }}
+                onDrop={(e) => { e.preventDefault(); handleDrop(id); setDragOverId(null) }}
+                onDragEnd={() => { dragItemRef.current = null; setDragOverId(null) }}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors ${
+                  dragOverId === id
+                    ? 'border-orange-500/50 bg-orange-500/10'
+                    : 'border-transparent bg-background/50'
+                }`}
+              >
+                <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/40 active:cursor-grabbing" />
+                <span className="flex-1 text-sm text-white">{PANEL_LABELS[id]}</span>
                 <div className="flex gap-0.5">
                   <button
                     onClick={() => handleMoveVisible(id, 'up')}
