@@ -100,6 +100,9 @@ export interface Asset {
   strikePrice?: number
   expiryDate?: string
   contractMultiplier?: number
+  margin?: number
+  direction?: 'long' | 'short'
+  lotQty?: number
   purchasedAt: string
   createdAt: string
   updatedAt: string

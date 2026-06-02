@@ -7,6 +7,30 @@ import (
 	"github.com/theodore/vibecoding-server/internal/model"
 )
 
+const assetSelectCols = `id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, owner, note, option_type, underlying_symbol, strike_price, expiry_date, contract_multiplier, margin, direction, lot_qty, purchased_at, created_at, updated_at`
+
+func scanAssetRow(scan func(...any) error) (model.Asset, error) {
+	var a model.Asset
+	var margin, lotQty sql.NullFloat64
+	err := scan(
+		&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market,
+		&a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.Dividends,
+		&a.Owner, &a.Note, &a.OptionType, &a.UnderlyingSymbol, &a.StrikePrice,
+		&a.ExpiryDate, &a.ContractMultiplier, &margin, &a.Direction, &lotQty,
+		&a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt,
+	)
+	if err != nil {
+		return a, err
+	}
+	if margin.Valid {
+		a.Margin = &margin.Float64
+	}
+	if lotQty.Valid {
+		a.LotQty = &lotQty.Float64
+	}
+	return a, nil
+}
+
 // Store 封装数据库访问，提供资产 CRUD 方法
 type Store struct {
 	db *sql.DB
@@ -22,13 +46,9 @@ func (s *Store) ListAssets(userID string, owner string) ([]model.Asset, error) {
 	var rows *sql.Rows
 	var err error
 	if owner != "" {
-		rows, err = s.db.Query(`
-			SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, owner, note, option_type, underlying_symbol, strike_price, expiry_date, contract_multiplier, purchased_at, created_at, updated_at
-			FROM assets WHERE user_id = ? AND owner = ? ORDER BY created_at`, userID, owner)
+		rows, err = s.db.Query(`SELECT `+assetSelectCols+` FROM assets WHERE user_id = ? AND owner = ? ORDER BY created_at`, userID, owner)
 	} else {
-		rows, err = s.db.Query(`
-			SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, owner, note, option_type, underlying_symbol, strike_price, expiry_date, contract_multiplier, purchased_at, created_at, updated_at
-			FROM assets WHERE user_id = ? ORDER BY created_at`, userID)
+		rows, err = s.db.Query(`SELECT `+assetSelectCols+` FROM assets WHERE user_id = ? ORDER BY created_at`, userID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list assets: %w", err)
@@ -37,8 +57,8 @@ func (s *Store) ListAssets(userID string, owner string) ([]model.Asset, error) {
 
 	var assets []model.Asset
 	for rows.Next() {
-		var a model.Asset
-		if err := rows.Scan(&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market, &a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.Dividends, &a.Owner, &a.Note, &a.OptionType, &a.UnderlyingSymbol, &a.StrikePrice, &a.ExpiryDate, &a.ContractMultiplier, &a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		a, err := scanAssetRow(rows.Scan)
+		if err != nil {
 			return nil, fmt.Errorf("scan asset: %w", err)
 		}
 		assets = append(assets, a)
@@ -48,11 +68,8 @@ func (s *Store) ListAssets(userID string, owner string) ([]model.Asset, error) {
 
 // GetAsset 按 ID 查询单条资产（限定用户）
 func (s *Store) GetAsset(id, userID string) (model.Asset, error) {
-	var a model.Asset
-	err := s.db.QueryRow(`
-		SELECT id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, owner, note, option_type, underlying_symbol, strike_price, expiry_date, contract_multiplier, purchased_at, created_at, updated_at
-		FROM assets WHERE id = ? AND user_id = ?`, id, userID).
-		Scan(&a.ID, &a.UserID, &a.Symbol, &a.Category, &a.Market, &a.CostBasis, &a.CurrentPrice, &a.Quantity, &a.Currency, &a.Dividends, &a.Owner, &a.Note, &a.OptionType, &a.UnderlyingSymbol, &a.StrikePrice, &a.ExpiryDate, &a.ContractMultiplier, &a.PurchasedAt, &a.CreatedAt, &a.UpdatedAt)
+	row := s.db.QueryRow(`SELECT `+assetSelectCols+` FROM assets WHERE id = ? AND user_id = ?`, id, userID)
+	a, err := scanAssetRow(row.Scan)
 	if err != nil {
 		return a, fmt.Errorf("get asset %s: %w", id, err)
 	}
@@ -62,9 +79,9 @@ func (s *Store) GetAsset(id, userID string) (model.Asset, error) {
 // CreateAsset 插入一条资产
 func (s *Store) CreateAsset(a model.Asset) error {
 	_, err := s.db.Exec(`
-		INSERT INTO assets (id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, owner, note, option_type, underlying_symbol, strike_price, expiry_date, contract_multiplier, purchased_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.UserID, a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.Dividends, a.Owner, a.Note, a.OptionType, a.UnderlyingSymbol, a.StrikePrice, a.ExpiryDate, a.ContractMultiplier, a.PurchasedAt, a.CreatedAt, a.UpdatedAt)
+		INSERT INTO assets (id, user_id, symbol, category, market, cost_basis, current_price, quantity, currency, dividends, owner, note, option_type, underlying_symbol, strike_price, expiry_date, contract_multiplier, margin, direction, lot_qty, purchased_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.UserID, a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.Dividends, a.Owner, a.Note, a.OptionType, a.UnderlyingSymbol, a.StrikePrice, a.ExpiryDate, a.ContractMultiplier, a.Margin, a.Direction, a.LotQty, a.PurchasedAt, a.CreatedAt, a.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create asset: %w", err)
 	}
@@ -74,9 +91,9 @@ func (s *Store) CreateAsset(a model.Asset) error {
 // UpdateAsset 按 ID 更新资产全部字段（限定用户）
 func (s *Store) UpdateAsset(a model.Asset) error {
 	result, err := s.db.Exec(`
-		UPDATE assets SET symbol=?, category=?, market=?, cost_basis=?, current_price=?, quantity=?, currency=?, dividends=?, owner=?, note=?, option_type=?, underlying_symbol=?, strike_price=?, expiry_date=?, contract_multiplier=?, purchased_at=?, updated_at=?
+		UPDATE assets SET symbol=?, category=?, market=?, cost_basis=?, current_price=?, quantity=?, currency=?, dividends=?, owner=?, note=?, option_type=?, underlying_symbol=?, strike_price=?, expiry_date=?, contract_multiplier=?, margin=?, direction=?, lot_qty=?, purchased_at=?, updated_at=?
 		WHERE id=? AND user_id=?`,
-		a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.Dividends, a.Owner, a.Note, a.OptionType, a.UnderlyingSymbol, a.StrikePrice, a.ExpiryDate, a.ContractMultiplier, a.PurchasedAt, a.UpdatedAt, a.ID, a.UserID)
+		a.Symbol, a.Category, a.Market, a.CostBasis, a.CurrentPrice, a.Quantity, a.Currency, a.Dividends, a.Owner, a.Note, a.OptionType, a.UnderlyingSymbol, a.StrikePrice, a.ExpiryDate, a.ContractMultiplier, a.Margin, a.Direction, a.LotQty, a.PurchasedAt, a.UpdatedAt, a.ID, a.UserID)
 	if err != nil {
 		return fmt.Errorf("update asset: %w", err)
 	}

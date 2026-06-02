@@ -38,12 +38,15 @@ type Asset struct {
 	Dividends          float64 `json:"dividends"`
 	Owner              string  `json:"owner"`
 	Note               string  `json:"note"`
-	OptionType         string  `json:"optionType"`
-	UnderlyingSymbol   string  `json:"underlyingSymbol"`
-	StrikePrice        float64 `json:"strikePrice"`
-	ExpiryDate         string  `json:"expiryDate"`
-	ContractMultiplier float64 `json:"contractMultiplier"`
-	PurchasedAt        string  `json:"purchasedAt"`
-	CreatedAt          string  `json:"createdAt"`
-	UpdatedAt          string  `json:"updatedAt"`
+	OptionType         string   `json:"optionType"`
+	UnderlyingSymbol   string   `json:"underlyingSymbol"`
+	StrikePrice        float64  `json:"strikePrice"`
+	ExpiryDate         string   `json:"expiryDate"`
+	ContractMultiplier float64  `json:"contractMultiplier"`
+	Margin             *float64 `json:"margin"`
+	Direction          string   `json:"direction"`
+	LotQty             *float64 `json:"lotQty"`
+	PurchasedAt        string   `json:"purchasedAt"`
+	CreatedAt          string   `json:"createdAt"`
+	UpdatedAt          string   `json:"updatedAt"`
 }

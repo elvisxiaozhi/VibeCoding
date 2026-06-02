@@ -12,11 +12,6 @@ import { cn } from '@/lib/utils'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function parseOrigQty(note: string): number {
-  const m = note.match(/orig_qty:([\d.]+)/)
-  return m ? parseFloat(m[1]) : 0
-}
-
 function pnlClass(v: number) {
   return v > 0 ? 'text-[#ef4444]' : v < 0 ? 'text-[#22c55e]' : 'text-muted-foreground'
 }
@@ -53,7 +48,7 @@ function buildTimeline(
     raw.push({ date: a.purchasedAt.slice(0, 10), type: 'buy', qty: a.quantity, price: a.costBasis, total: a.costBasis * a.quantity * mult, currency: a.currency })
   }
   for (const a of symConsumed) {
-    const origQty = parseOrigQty(a.note ?? '')
+    const origQty = a.lotQty ?? 0
     if (origQty <= 0) continue
     const mult = contractMultiplier(a)
     raw.push({ date: a.purchasedAt.slice(0, 10), type: 'buy', qty: origQty, price: a.costBasis, total: a.costBasis * origQty * mult, currency: a.currency })

@@ -149,12 +149,6 @@ export function xirrRate(cashflows: Cashflow[], guess = 0.1): number {
   return rate
 }
 
-/** 从 note 中解析 orig_qty:123.45 格式的原始份额 */
-function parseOrigQty(note: string): number {
-  const m = note.match(/orig_qty:([\d.]+)/)
-  return m ? parseFloat(m[1]) : 0
-}
-
 function validDate(value: string): Date | null {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
@@ -172,7 +166,7 @@ export function annualizedStartDate(buyLots: Asset[], consumedRecords: Asset[] =
 
   for (const a of consumedRecords) {
     if (a.category === 'gold') continue
-    if (parseOrigQty(a.note ?? '') <= 0) continue
+    if ((a.lotQty ?? 0) <= 0) continue
     const date = validDate(a.purchasedAt)
     if (date) dates.push(date)
   }
@@ -225,7 +219,7 @@ export function holdingsXIRR(
 
   if (buyLots.length === 0 && consumedRecords.length === 0) return 0
 
-  const validConsumed = consumedRecords.filter((a) => parseOrigQty(a.note ?? '') > 0)
+  const validConsumed = consumedRecords.filter((a) => (a.lotQty ?? 0) > 0)
   const includeHistorical = validConsumed.length > 0
 
   const cashflows: Cashflow[] = []
@@ -257,7 +251,7 @@ export function holdingsXIRR(
   // 已清仓买入 + 卖出仅在有原始份额数据时成对纳入
   if (includeHistorical) {
     for (const a of validConsumed) {
-      const origQty = parseOrigQty(a.note ?? '')
+      const origQty = a.lotQty ?? 0
       const date = new Date(a.purchasedAt)
       const rate = getRate(a.currency, date)
       if (rate <= 0) continue

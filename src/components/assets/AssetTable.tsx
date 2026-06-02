@@ -155,12 +155,6 @@ function pnlRate(group: SymbolGroup): number | null {
   return group.totalPnL / group.totalCost
 }
 
-function parseMarginUSD(note: string | undefined): number | null {
-  if (!note) return null
-  const m = note.match(/margin[=:](\d+(?:\.\d+)?)/)
-  return m ? parseFloat(m[1]) : null
-}
-
 function daysToExpiry(expiryDate: string | undefined): number | null {
   if (!expiryDate) return null
   return Math.max(0, Math.floor((new Date(expiryDate).getTime() - Date.now()) / 86400000))
@@ -363,7 +357,7 @@ function groupBySymbol(assets: Asset[]): SymbolGroup[] {
     const totalDiv = dividendRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
     const totalRedemption = redemptionRecords.reduce((s, a) => s + (a.dividends ?? 0), 0)
     const totalPnL = totalPnLValue(openLots) + totalDiv + totalRedemption
-    const consumedRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
+    const consumedRecords = allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.lotQty ?? 0) > 0)
     // 取第一条记录作为代表（优先 openLots，没有则取 sellRecords）
     const representative = openLots[0] ?? sellRecords[0] ?? dividendRecords[0]
     const annReturn = hasMinimumAnnualizedHistory(openLots, consumedRecords)
@@ -623,7 +617,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     [assets],
   )
   const sheetConsumedRecords = useMemo(
-    () => assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')),
+    () => assets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.lotQty ?? 0) > 0),
     [assets],
   )
   const sheetSellRecords = useMemo(
@@ -990,7 +984,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         const allGroupDivs = symbolGroups.flatMap((g) => g.dividendRecords)
         const groupDivCNY = allGroupDivs.reduce((s, a) => s + toCNY(a.dividends ?? 0, a.currency, rates), 0)
         const groupPnLCNY = groupMVCNY - groupCostCNY + groupDivCNY
-        const allGroupConsumed = symbolGroups.flatMap((g) => g.allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:')))
+        const allGroupConsumed = symbolGroups.flatMap((g) => g.allRecords.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.lotQty ?? 0) > 0))
         const allGroupSells = symbolGroups.flatMap((g) => g.sellRecords)
         const annualizedOpenLots = allOpenLots.filter((a) => !isCashLikeCurrencyAsset(a))
         const annualizedSymbols = new Set(annualizedOpenLots.map((a) => a.symbol))
@@ -1142,7 +1136,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                   const mult = lot?.contractMultiplier ?? 1
                                   const premium = Math.abs(group.totalCost)
                                   const closeoutCost = group.currentPrice * mult * Math.abs(group.totalQuantity)
-                                  const margin = parseMarginUSD(lot?.note)
+                                  const margin = lot?.margin ?? null
                                   const dte = daysToExpiry(group.expiryDate)
                                   return <>
                                     <div>
@@ -1336,7 +1330,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                           const mult = lot?.contractMultiplier ?? 1
                                           const premium = Math.abs(group.totalCost)
                                           const closeoutCost = group.currentPrice * mult * Math.abs(group.totalQuantity)
-                                          const margin = parseMarginUSD(lot?.note)
+                                          const margin = lot?.margin ?? null
                                           const dte = daysToExpiry(group.expiryDate)
                                           return <>
                                             <div className="rounded-lg border border-border/40 bg-background/40 p-3">

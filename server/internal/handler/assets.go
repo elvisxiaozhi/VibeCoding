@@ -63,22 +63,25 @@ func (h *Assets) get(w http.ResponseWriter, r *http.Request) {
 
 // createRequest 新增资产的请求体（不含 id / createdAt / updatedAt）
 type createRequest struct {
-	Symbol             string  `json:"symbol"`
-	Category           string  `json:"category"`
-	Market             string  `json:"market"`
-	CostBasis          float64 `json:"costBasis"`
-	CurrentPrice       float64 `json:"currentPrice"`
-	Quantity           float64 `json:"quantity"`
-	Currency           string  `json:"currency"`
-	Dividends          float64 `json:"dividends"`
-	Owner              string  `json:"owner"`
-	Note               string  `json:"note"`
-	OptionType         string  `json:"optionType"`
-	UnderlyingSymbol   string  `json:"underlyingSymbol"`
-	StrikePrice        float64 `json:"strikePrice"`
-	ExpiryDate         string  `json:"expiryDate"`
-	ContractMultiplier float64 `json:"contractMultiplier"`
-	PurchasedAt        string  `json:"purchasedAt"`
+	Symbol             string   `json:"symbol"`
+	Category           string   `json:"category"`
+	Market             string   `json:"market"`
+	CostBasis          float64  `json:"costBasis"`
+	CurrentPrice       float64  `json:"currentPrice"`
+	Quantity           float64  `json:"quantity"`
+	Currency           string   `json:"currency"`
+	Dividends          float64  `json:"dividends"`
+	Owner              string   `json:"owner"`
+	Note               string   `json:"note"`
+	OptionType         string   `json:"optionType"`
+	UnderlyingSymbol   string   `json:"underlyingSymbol"`
+	StrikePrice        float64  `json:"strikePrice"`
+	ExpiryDate         string   `json:"expiryDate"`
+	ContractMultiplier float64  `json:"contractMultiplier"`
+	Margin             *float64 `json:"margin"`
+	Direction          string   `json:"direction"`
+	LotQty             *float64 `json:"lotQty"`
+	PurchasedAt        string   `json:"purchasedAt"`
 }
 
 // POST /api/assets — 新增资产
@@ -114,6 +117,9 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 		StrikePrice:        req.StrikePrice,
 		ExpiryDate:         req.ExpiryDate,
 		ContractMultiplier: req.ContractMultiplier,
+		Margin:             req.Margin,
+		Direction:          req.Direction,
+		LotQty:             req.LotQty,
 		PurchasedAt:        req.PurchasedAt,
 		CreatedAt:          now,
 		UpdatedAt:          now,
@@ -130,6 +136,9 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 	if asset.Owner == "" {
 		asset.Owner = "me"
 	}
+	if asset.Direction == "" {
+		asset.Direction = "long"
+	}
 	applyOptionDefaults(&asset)
 
 	if err := h.Store.CreateAsset(asset); err != nil {
@@ -141,22 +150,25 @@ func (h *Assets) create(w http.ResponseWriter, r *http.Request) {
 
 // updateRequest 更新资产的请求体
 type updateRequest struct {
-	Symbol             string  `json:"symbol"`
-	Category           string  `json:"category"`
-	Market             string  `json:"market"`
-	CostBasis          float64 `json:"costBasis"`
-	CurrentPrice       float64 `json:"currentPrice"`
-	Quantity           float64 `json:"quantity"`
-	Currency           string  `json:"currency"`
-	Dividends          float64 `json:"dividends"`
-	Owner              string  `json:"owner"`
-	Note               string  `json:"note"`
-	OptionType         string  `json:"optionType"`
-	UnderlyingSymbol   string  `json:"underlyingSymbol"`
-	StrikePrice        float64 `json:"strikePrice"`
-	ExpiryDate         string  `json:"expiryDate"`
-	ContractMultiplier float64 `json:"contractMultiplier"`
-	PurchasedAt        string  `json:"purchasedAt"`
+	Symbol             string   `json:"symbol"`
+	Category           string   `json:"category"`
+	Market             string   `json:"market"`
+	CostBasis          float64  `json:"costBasis"`
+	CurrentPrice       float64  `json:"currentPrice"`
+	Quantity           float64  `json:"quantity"`
+	Currency           string   `json:"currency"`
+	Dividends          float64  `json:"dividends"`
+	Owner              string   `json:"owner"`
+	Note               string   `json:"note"`
+	OptionType         string   `json:"optionType"`
+	UnderlyingSymbol   string   `json:"underlyingSymbol"`
+	StrikePrice        float64  `json:"strikePrice"`
+	ExpiryDate         string   `json:"expiryDate"`
+	ContractMultiplier float64  `json:"contractMultiplier"`
+	Margin             *float64 `json:"margin"`
+	Direction          string   `json:"direction"`
+	LotQty             *float64 `json:"lotQty"`
+	PurchasedAt        string   `json:"purchasedAt"`
 }
 
 // PUT /api/assets/{id} — 更新资产
@@ -204,6 +216,9 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 		StrikePrice:        req.StrikePrice,
 		ExpiryDate:         req.ExpiryDate,
 		ContractMultiplier: req.ContractMultiplier,
+		Margin:             req.Margin,
+		Direction:          req.Direction,
+		LotQty:             req.LotQty,
 		PurchasedAt:        req.PurchasedAt,
 		CreatedAt:          existing.CreatedAt,
 		UpdatedAt:          now,
@@ -234,6 +249,15 @@ func (h *Assets) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if asset.ContractMultiplier == 0 {
 		asset.ContractMultiplier = existing.ContractMultiplier
+	}
+	if asset.Direction == "" {
+		asset.Direction = existing.Direction
+	}
+	if asset.Margin == nil {
+		asset.Margin = existing.Margin
+	}
+	if asset.LotQty == nil {
+		asset.LotQty = existing.LotQty
 	}
 	applyOptionDefaults(&asset)
 
