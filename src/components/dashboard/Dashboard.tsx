@@ -22,6 +22,7 @@ import { PortfolioSnapshotPanel } from '@/components/dashboard/PortfolioSnapshot
 import { PriceRefreshCenter } from '@/components/dashboard/PriceRefreshCenter'
 import { RiskExposurePanel } from '@/components/dashboard/RiskExposurePanel'
 import { StatCard } from '@/components/dashboard/StatCard'
+import { Card, CardContent } from '@/components/ui/card'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
@@ -101,13 +102,6 @@ function optionPnL(asset: Asset): number {
   return marketValue(asset) - costValue(asset)
 }
 
-function parseOptionMarginUSD(note: string): number | null {
-  const match = note.match(/margin[=:]([\d.]+)/i)
-  if (!match) return null
-  const value = Number.parseFloat(match[1])
-  return Number.isFinite(value) && value > 0 ? value : null
-}
-
 function compoundAnnualized(rate: number, days: number): number | null {
   if (days <= 0 || rate <= -1) return null
   return Math.pow(1 + rate, 365 / days) - 1
@@ -116,6 +110,7 @@ function compoundAnnualized(rate: number, days: number): number | null {
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { mask } = usePrivacy()
   const [reorderMode, setReorderMode] = useState(false)
+  const [dimView, setDimView] = useState<'day' | 'month' | 'year'>('day')
   const [dragOverId, setDragOverId] = useState<PanelId | null>(null)
   const dragItemRef = useRef<PanelId | null>(null)
   const { order, updateOrder, reset: resetPanelOrder } = usePanelOrder()
@@ -153,8 +148,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const holdings = dashboardAssets.filter((a) => a.quantity > 0)
   // 分红记录（qty = 0, dividends > 0）
   const divRecords = dashboardAssets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) > 0)
-  // 已清仓买入记录（qty = 0, div = 0, note 含 orig_qty）
-  const consumedRecords = dashboardAssets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.note ?? '').includes('orig_qty:'))
+  // 已清仓买入记录（qty = 0, div = 0, lotQty > 0）
+  const consumedRecords = dashboardAssets.filter((a) => a.quantity === 0 && (a.dividends ?? 0) === 0 && (a.lotQty ?? 0) > 0)
   // 卖出记录（qty < 0）
   const sellRecords = dashboardAssets.filter((a) => a.quantity < 0)
   const coreHoldings = holdings.filter(isCoreAnnualizedAsset)
@@ -162,8 +157,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const coreConsumedRecords = consumedRecords.filter(isCoreAnnualizedAsset)
   const coreSellRecords = sellRecords.filter(isCoreAnnualizedAsset)
   const optionRecords = dashboardAssets.filter((a) => a.category === 'option')
-  const optionHoldings = optionRecords.filter((a) => a.quantity > 0 || (a.quantity < 0 && (a.note ?? '').includes('sell-to-open')))
-  const optionSellRecords = optionRecords.filter((a) => a.quantity < 0 && !(a.note ?? '').includes('sell-to-open'))
+  const optionHoldings = optionRecords.filter((a) => a.quantity > 0 || (a.quantity < 0 && a.direction === 'short'))
+  const optionSellRecords = optionRecords.filter((a) => a.quantity < 0 && a.direction !== 'short')
   const providentFundValueCNY = assets
     .filter((a) => a.category === 'provident_fund' && a.quantity > 0)
     .reduce((s, a) => s + assetMVInCNY(a, rates), 0)
@@ -244,7 +239,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     }))
   const optionPremiumUSD = optionHoldings.reduce((sum, asset) => sum + toUSD(optionPremium(asset), asset.currency, rates), 0)
   const optionPnLUSD = optionHoldings.reduce((sum, asset) => sum + toUSD(optionPnL(asset), asset.currency, rates), 0)
-  const optionMarginUSD = optionHoldings.reduce((sum, asset) => sum + (parseOptionMarginUSD(asset.note ?? '') ?? 0), 0)
+  const optionMarginUSD = optionHoldings.reduce((sum, asset) => sum + (asset.margin ?? 0), 0)
   const optionMarginReturn = optionMarginUSD > 0 ? optionPnLUSD / optionMarginUSD : null
   const optionMaxMarginReturn = optionMarginUSD > 0 ? optionPremiumUSD / optionMarginUSD : null
   const optionOpenedAt = optionHoldings
@@ -302,6 +297,30 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   const riskExposure = calculateRiskExposure(holdings, rates, totalValueCNY)
   const returnAttribution = calculateReturnAttribution(holdings, divRecords, sellRecords, rates, getHistRate)
+
+  // 多维度涨跌对比：快照存全量资产，这里也用全量 assets 保持口径一致
+  const allHoldingsValueCNY = assets.filter((a) => a.quantity > 0).reduce((s, a) => s + assetMVInCNY(a, rates), 0)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const thirtyDaysAgoStr = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const oneYearAgoStr = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
+  const prevSnapshot = snapshots.filter((s) => s.snapshotDate < todayStr).at(-1) ?? null
+  const monthSnapshot = snapshots.filter((s) => s.snapshotDate <= thirtyDaysAgoStr).at(-1) ?? null
+  const yearSnapshot = snapshots.filter((s) => s.snapshotDate <= oneYearAgoStr).at(-1) ?? null
+  const dimSnapshotMap = { day: prevSnapshot, month: monthSnapshot, year: yearSnapshot } as const
+  const activeDimSnapshot = dimSnapshotMap[dimView]
+  const activeDimDelta = activeDimSnapshot ? allHoldingsValueCNY - activeDimSnapshot.totalValueCNY : null
+  const activeDimPct =
+    activeDimSnapshot && activeDimSnapshot.totalValueCNY > 0
+      ? (allHoldingsValueCNY - activeDimSnapshot.totalValueCNY) / activeDimSnapshot.totalValueCNY
+      : null
+  const activeDimLabel = activeDimSnapshot
+    ? activeDimSnapshot.snapshotDate === yesterdayStr
+      ? '较昨日'
+      : dimView === 'year'
+        ? `较 ${activeDimSnapshot.snapshotDate.slice(0, 7).replace('-', '/')}`
+        : `较 ${activeDimSnapshot.snapshotDate.slice(5).replace('-', '/')}`
+    : null
 
   if (loading || liabilitiesLoading) {
     return (
@@ -589,12 +608,46 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
       {/* 统计卡片 */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <StatCard
-          title="总资产"
-          value={mask(formatCompactCNY(totalValueCNY))}
-          valueTitle={mask(formatCNY(totalValueCNY))}
-          icon={Wallet}
-        />
+        <Card className="bg-card/60">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">总资产</p>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p title={mask(formatCNY(totalValueCNY))} className="mt-2 break-words font-mono text-lg font-semibold sm:text-xl text-foreground">
+              {mask(formatCompactCNY(totalValueCNY))}
+            </p>
+            <div className="mt-2 flex items-center gap-1">
+              {(['day', 'month', 'year'] as const).map((dim) => {
+                const label = { day: '昨', month: '月', year: '年' }[dim]
+                const hasSnap = dimSnapshotMap[dim] !== null
+                return (
+                  <button
+                    key={dim}
+                    onClick={() => setDimView(dim)}
+                    disabled={!hasSnap}
+                    className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+                      dimView === dim
+                        ? 'bg-muted text-white'
+                        : hasSnap
+                          ? 'text-muted-foreground hover:text-white'
+                          : 'cursor-default text-muted-foreground/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+              {activeDimLabel !== null && activeDimDelta !== null && activeDimPct !== null ? (
+                <span className={`ml-1 font-mono text-sm ${activeDimDelta >= 0 ? 'text-[#ef4444]' : 'text-[#22c55e]'}`}>
+                  {activeDimLabel} {mask(`${activeDimDelta >= 0 ? '+' : ''}${formatCompactCNY(activeDimDelta)}`)} ({formatPercent(activeDimPct)})
+                </span>
+              ) : (
+                <span className="ml-1 text-xs text-muted-foreground/40">暂无数据</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
         <StatCard
           title="净资产"
           value={mask(formatCompactCNY(netWorthCNY))}
