@@ -195,6 +195,33 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     [isLoggedIn, fetchAssets],
   )
 
+  const deleteAssets = useCallback(
+    async (ids: string[]): Promise<boolean> => {
+      if (!isLoggedIn) return false
+      try {
+        for (const id of ids) {
+          const res = await fetch(`/api/assets/${id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          })
+          if (!res.ok) {
+            const body = (await res.json()) as { error: string }
+            toast.error(`删除失败：${body.error}`)
+            return false
+          }
+        }
+        assetsCache.clear()
+        await fetchAssets()
+        return true
+      } catch (err) {
+        toast.error('删除失败：网络错误')
+        console.error('deleteAssets failed:', err)
+        return false
+      }
+    },
+    [isLoggedIn, fetchAssets],
+  )
+
   // 只统计持仓（qty > 0），排除卖出记录
   const holdings = useMemo(() => assets.filter((a) => a.quantity > 0), [assets])
   const totalValue = useMemo(() => totalMarketValue(holdings), [holdings])
@@ -210,6 +237,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     addAsset,
     updateAsset,
     deleteAsset,
+    deleteAssets,
     totalValue,
     totalCost,
     totalPnL,

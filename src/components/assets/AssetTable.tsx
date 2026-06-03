@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 
@@ -430,7 +431,7 @@ interface AssetTableProps {
 
 export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const { mask } = usePrivacy()
-  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets(isLoggedIn, ownerFilter)
+  const { assets, loading, addAsset, updateAsset, deleteAsset, deleteAssets } = useAssets(isLoggedIn, ownerFilter)
   const { rates } = useExchangeRates()
   const { isReadOnly } = useEditMode()
   const canEdit = isLoggedIn && !isReadOnly
@@ -683,6 +684,24 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     }
     setDeleteOpen(false)
     setDeletingAsset(undefined)
+  }
+
+  async function handleOptionSettle(outcome: import('@/components/assets/OptionSettleModal').SettleOutcome, closePrice?: number) {
+    if (!canEdit || !detailSymbol) return
+    const lots = assets.filter(
+      (a) => a.symbol === detailSymbol && a.category === 'option' && a.quantity !== 0,
+    )
+    const ok = await deleteAssets(lots.map((l) => l.id))
+    if (ok) {
+      const msg =
+        outcome === 'expire'
+          ? '期权已到期作废'
+          : outcome === 'close'
+            ? `期权已平仓${closePrice != null ? ` @ ${closePrice}` : ''}`
+            : '期权已了结，请手动新建对应股票仓位'
+      toast.success(msg)
+      setDetailOpen(false)
+    }
   }
 
   // 加载状态
@@ -1497,6 +1516,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
         summaries={sheetSummaries}
         rates={rates}
         onAddTransaction={addAsset}
+        onSettle={canEdit ? handleOptionSettle : undefined}
       />
     </div>
   )

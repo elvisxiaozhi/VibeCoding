@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, CircleDollarSign, X } from 'lucide-react'
 
 import { usePrivacy } from '@/context/PrivacyContext'
@@ -9,6 +9,7 @@ import type { PerformanceSummary } from '@/components/dashboard/PerformancePanel
 import { TransactionEntry } from '@/components/dashboard/TransactionEntry'
 import type { AssetDraft } from '@/hooks/useAssets'
 import { cn } from '@/lib/utils'
+import { OptionSettleModal, type SettleOutcome } from '@/components/assets/OptionSettleModal'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ interface AssetDetailSheetProps {
   summaries: PerformanceSummary[]
   rates: Record<string, number>
   onAddTransaction?: (draft: AssetDraft) => Promise<boolean>
+  onSettle?: (outcome: SettleOutcome, closePrice?: number) => Promise<void>
 }
 
 export function AssetDetailSheet({
@@ -107,8 +109,10 @@ export function AssetDetailSheet({
   summaries,
   rates,
   onAddTransaction,
+  onSettle,
 }: AssetDetailSheetProps) {
   const { mask } = usePrivacy()
+  const [settleOpen, setSettleOpen] = useState(false)
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -214,6 +218,16 @@ export function AssetDetailSheet({
             </div>
           </div>
 
+          {/* Option settle button */}
+          {category === 'option' && totalQty !== 0 && onSettle && (
+            <button
+              onClick={() => setSettleOpen(true)}
+              className="w-full rounded-lg border border-orange-500/30 bg-orange-500/5 py-2 text-sm font-medium text-orange-400 transition-colors hover:border-orange-500/60 hover:bg-orange-500/10"
+            >
+              了结期权
+            </button>
+          )}
+
           {/* Current position */}
           {totalQty > 0 && (
             <div className="rounded-lg border border-border/40 bg-background/40 px-3 py-2.5">
@@ -294,6 +308,18 @@ export function AssetDetailSheet({
           )}
         </div>
       </div>
+
+      {onSettle && (
+        <OptionSettleModal
+          open={settleOpen}
+          onClose={() => setSettleOpen(false)}
+          lots={symHoldings}
+          onConfirm={async (outcome, closePrice) => {
+            await onSettle(outcome, closePrice)
+            setSettleOpen(false)
+          }}
+        />
+      )}
     </>
   )
 }
