@@ -137,6 +137,7 @@ interface BalanceAssetPanelProps {
   canEdit: boolean
   onEdit: (asset: Asset) => void
   onDelete: (asset: Asset) => void
+  onExport: (group: SymbolGroup) => void
 }
 
 function formatPercent(n: number): string {
@@ -211,6 +212,7 @@ function BalanceAssetPanel({
   canEdit,
   onEdit,
   onDelete,
+  onExport,
 }: BalanceAssetPanelProps) {
   const { mask } = usePrivacy()
   const totalCNY = groups.reduce((sum, group) => sum + toCNY(group.totalMV, group.currency, rates), 0)
@@ -251,16 +253,19 @@ function BalanceAssetPanel({
                   )}
                   <div className="text-[10px] text-muted-foreground">{updatedAt}</div>
                 </div>
-                {canEdit && asset && (
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-white" onClick={() => onExport(group)}>
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                  {canEdit && asset && (<>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-white" onClick={() => onEdit(asset)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-[#22c55e]" onClick={() => onDelete(asset)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
-                  </div>
-                )}
+                  </>)}
+                </div>
               </div>
             </div>
           )
@@ -608,6 +613,34 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     const a = document.createElement('a')
     a.href = url
     a.download = `assets-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportAssetCSV(group: SymbolGroup) {
+    const sorted = [...group.allRecords].sort((a, b) => {
+      const d = a.purchasedAt.localeCompare(b.purchasedAt)
+      return d !== 0 ? d : a.id.localeCompare(b.id)
+    })
+    const headers = ['日期', '类型', '数量', '单价', '金额', '分红', '货币', '备注']
+    const rows = sorted.map((r) => {
+      if (r.quantity < 0) {
+        const qty = Math.abs(r.quantity)
+        return [r.purchasedAt.slice(0, 10), recordLabel(r), qty.toFixed(2), r.currentPrice.toFixed(4), (qty * r.currentPrice).toFixed(2), '', r.currency, r.note || '']
+      }
+      if (r.quantity === 0 && (r.dividends ?? 0) > 0) {
+        return [r.purchasedAt.slice(0, 10), recordLabel(r), '', '', '', (r.dividends ?? 0).toFixed(2), r.currency, r.note || '']
+      }
+      return [r.purchasedAt.slice(0, 10), recordLabel(r), r.quantity.toFixed(2), r.costBasis.toFixed(4), (r.quantity * r.costBasis).toFixed(2), '', r.currency, r.note || '']
+    })
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${group.symbol}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -993,6 +1026,7 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
               canEdit={canEdit}
               onEdit={handleEdit}
               onDelete={handleDeleteClick}
+              onExport={exportAssetCSV}
             />
           )
         }
@@ -1220,12 +1254,16 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                 ))}
                               </div>
 
-                              {canEdit && group.openLots[0] && (
-                                <div className="flex justify-end gap-2">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white" onClick={() => exportAssetCSV(group)}>
+                                  <Download className="mr-1 h-3.5 w-3.5" />
+                                  导出
+                                </Button>
+                                {canEdit && group.openLots[0] && (<>
                                   <Button variant="outline" size="sm" onClick={() => handleEdit(group.openLots[0])}>编辑</Button>
                                   <Button variant="ghost" size="sm" className="text-[#22c55e] hover:text-[#22c55e]" onClick={() => handleDeleteClick(group.openLots[0])}>删除</Button>
-                                </div>
-                              )}
+                                </>)}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1407,8 +1445,12 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
 
                                       <div className="flex items-center justify-between gap-3">
                                         <div className="text-sm font-medium text-white">交易明细</div>
-                                        {canEdit && group.openLots[0] && (
-                                          <div className="flex gap-1">
+                                        <div className="flex gap-1">
+                                          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white" onClick={() => exportAssetCSV(group)}>
+                                            <Download className="mr-1 h-3.5 w-3.5" />
+                                            导出
+                                          </Button>
+                                          {canEdit && group.openLots[0] && (<>
                                             <Button variant="ghost" size="sm" onClick={() => handleEdit(group.openLots[0])}>
                                               <Pencil className="mr-1 h-3.5 w-3.5" />
                                               编辑
@@ -1417,8 +1459,8 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
                                               <Trash2 className="mr-1 h-3.5 w-3.5" />
                                               删除
                                             </Button>
-                                          </div>
-                                        )}
+                                          </>)}
+                                        </div>
                                       </div>
 
                                       <div className="space-y-2">
