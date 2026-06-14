@@ -35,6 +35,12 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
   // 始终指向"当前渲染的" ownerFilter，闭包过时的调用据此识别。
   const ownerFilterRef = useRef(ownerFilter)
   ownerFilterRef.current = ownerFilter
+  // 记录当前 assets 属于哪个 owner（cacheKey）。用于区分两类缓存未命中：
+  // · owner 真的切换了 → 清空旧数据显示骨架，避免一瞬看到别人的数字
+  // · 同 owner 的刷新 / 增删改 → 保留现有数据后台 revalidate，不闪
+  const loadedKeyRef = useRef<string | null>(
+    isLoggedIn && assetsCache.has(cacheKey(ownerFilter)) ? cacheKey(ownerFilter) : null,
+  )
 
   const fetchAssets = useCallback(async () => {
     if (!isLoggedIn) {
@@ -47,11 +53,14 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
     if (ownerFilter !== ownerFilterRef.current) return
     const key = cacheKey(ownerFilter)
     const cached = assetsCache.get(key)
-    // 命中缓存：立即上屏，loading 不显示；否则显示 spinner
+    // 命中缓存：立即上屏，loading 不显示；否则显示骨架
     if (cached) {
       setAssets(cached)
+      loadedKeyRef.current = key
       setLoading(false)
     } else {
+      // 只有 owner 真切换时才清空旧数据触发骨架；同 owner 刷新保留现有数据避免闪烁
+      if (loadedKeyRef.current !== key) setAssets([])
       setLoading(true)
     }
     const seq = ++fetchSeqRef.current
@@ -76,6 +85,7 @@ export function useAssets(isLoggedIn: boolean, ownerFilter?: OwnerType) {
       setError(null)
       assetsCache.set(key, data as Asset[])
       setAssets(data as Asset[])
+      loadedKeyRef.current = key
     } catch (err) {
       if (seq !== fetchSeqRef.current) return
       setError('加载失败：网络错误')

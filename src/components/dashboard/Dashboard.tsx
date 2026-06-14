@@ -6,7 +6,6 @@ import {
   DollarSign,
   Eye,
   GripVertical,
-  Loader2,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -23,6 +22,7 @@ import { PriceRefreshCenter } from '@/components/dashboard/PriceRefreshCenter'
 import { RiskExposurePanel } from '@/components/dashboard/RiskExposurePanel'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
@@ -105,6 +105,38 @@ function optionPnL(asset: Asset): number {
 function compoundAnnualized(rate: number, days: number): number | null {
   if (days <= 0 || rate <= -1) return null
   return Math.pow(1 + rate, 365 / days) - 1
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4 sm:space-y-5">
+      {/* 价格刷新中心条 */}
+      <Skeleton className="h-14 w-full rounded-xl" />
+      {/* 总览口径卡片 */}
+      <Skeleton className="h-24 w-full rounded-xl" />
+      {/* 统计卡片网格 */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i} className="bg-card/60">
+            <CardContent className="space-y-3 p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </div>
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {/* 下方大面板 */}
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+      <Skeleton className="h-48 w-full rounded-xl" />
+    </div>
+  )
 }
 
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
@@ -322,12 +354,9 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         : `较 ${activeDimSnapshot.snapshotDate.slice(5).replace('-', '/')}`
     : null
 
-  if (loading || liabilitiesLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+  // 骨架屏：仅在手上无数据时显示；刷新 / 切 owner 后台 revalidate 时保留现数据不闪
+  if ((loading || liabilitiesLoading) && assets.length === 0) {
+    return <DashboardSkeleton />
   }
 
   if (assetsError && assets.length === 0) {

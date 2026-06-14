@@ -14,7 +14,6 @@ import {
   Eye,
   Filter,
   GripVertical,
-  Loader2,
   Lock,
   Pencil,
   Plus,
@@ -41,6 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -434,6 +434,36 @@ interface AssetTableProps {
   ownerFilter?: OwnerType
 }
 
+function AssetTableSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* 工具栏：搜索 + 操作按钮 */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Skeleton className="h-9 w-full max-w-xs" />
+        <Skeleton className="h-9 w-24" />
+        <Skeleton className="ml-auto h-9 w-28" />
+      </div>
+      {/* 表格卡片 */}
+      <div className="rounded-xl border border-border/50 bg-card shadow">
+        <div className="border-b border-border/50 px-4 py-3">
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="divide-y divide-border/40">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="ml-auto h-4 w-20" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
   const { mask } = usePrivacy()
   const { assets, loading, addAsset, updateAsset, deleteAsset, deleteAssets } = useAssets(isLoggedIn, ownerFilter)
@@ -737,13 +767,9 @@ export function AssetTable({ isLoggedIn, ownerFilter }: AssetTableProps) {
     }
   }
 
-  // 加载状态
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+  // 加载状态：骨架屏（仅在手上无数据时，刷新/增删改保留现数据不闪）
+  if (loading && assets.length === 0) {
+    return <AssetTableSkeleton />
   }
 
   // 空状态
