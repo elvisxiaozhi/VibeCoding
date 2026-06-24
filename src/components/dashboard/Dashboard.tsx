@@ -142,7 +142,7 @@ function DashboardSkeleton() {
 export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const { mask } = usePrivacy()
   const [reorderMode, setReorderMode] = useState(false)
-  const [dimView, setDimView] = useState<'day' | 'month' | 'year'>('day')
+  const [dimView, setDimView] = useState<'week' | 'month' | 'year'>('week')
   const [dragOverId, setDragOverId] = useState<PanelId | null>(null)
   const dragItemRef = useRef<PanelId | null>(null)
   const { order, updateOrder, reset: resetPanelOrder } = usePanelOrder()
@@ -334,12 +334,27 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const allHoldingsValueCNY = assets.filter((a) => a.quantity > 0).reduce((s, a) => s + assetMVInCNY(a, rates), 0)
   const todayStr = new Date().toISOString().slice(0, 10)
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const sevenDaysAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
   const thirtyDaysAgoStr = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
   const oneYearAgoStr = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
   const prevSnapshot = snapshots.filter((s) => s.snapshotDate < todayStr).at(-1) ?? null
+  const weekSnapshot = snapshots.filter((s) => s.snapshotDate <= sevenDaysAgoStr).at(-1) ?? null
   const monthSnapshot = snapshots.filter((s) => s.snapshotDate <= thirtyDaysAgoStr).at(-1) ?? null
   const yearSnapshot = snapshots.filter((s) => s.snapshotDate <= oneYearAgoStr).at(-1) ?? null
-  const dimSnapshotMap = { day: prevSnapshot, month: monthSnapshot, year: yearSnapshot } as const
+  const dimSnapshotMap = { week: weekSnapshot, month: monthSnapshot, year: yearSnapshot } as const
+
+  // 今日涨跌：常驻一行，对比今天之前最近的一笔快照。锚点非昨日时降级标注实际日期。
+  const todayDelta = prevSnapshot ? allHoldingsValueCNY - prevSnapshot.totalValueCNY : null
+  const todayPct =
+    prevSnapshot && prevSnapshot.totalValueCNY > 0
+      ? (allHoldingsValueCNY - prevSnapshot.totalValueCNY) / prevSnapshot.totalValueCNY
+      : null
+  const todayStale = prevSnapshot !== null && prevSnapshot.snapshotDate !== yesterdayStr
+  const todayLabel = prevSnapshot
+    ? todayStale
+      ? `较 ${prevSnapshot.snapshotDate.slice(5).replace('-', '/')}`
+      : '今日'
+    : null
   const activeDimSnapshot = dimSnapshotMap[dimView]
   const activeDimDelta = activeDimSnapshot ? allHoldingsValueCNY - activeDimSnapshot.totalValueCNY : null
   const activeDimPct =
@@ -646,9 +661,25 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             <p title={mask(formatCNY(totalValueCNY))} className="mt-2 break-words font-mono text-lg font-semibold sm:text-xl text-foreground">
               {mask(formatCompactCNY(totalValueCNY))}
             </p>
+            {/* 今日涨跌：常驻一行 */}
+            {todayLabel !== null && todayDelta !== null && todayPct !== null ? (
+              <p
+                className={`mt-1 font-mono text-sm ${
+                  todayStale
+                    ? 'text-muted-foreground/60'
+                    : todayDelta >= 0
+                      ? 'text-[#ef4444]'
+                      : 'text-[#22c55e]'
+                }`}
+              >
+                {todayLabel} {mask(`${todayDelta >= 0 ? '+' : ''}${formatCompactCNY(todayDelta)}`)} ({formatPercent(todayPct)})
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground/40">今日 暂无数据</p>
+            )}
             <div className="mt-2 flex items-center gap-1">
-              {(['day', 'month', 'year'] as const).map((dim) => {
-                const label = { day: '昨', month: '月', year: '年' }[dim]
+              {(['week', 'month', 'year'] as const).map((dim) => {
+                const label = { week: '周', month: '月', year: '年' }[dim]
                 const hasSnap = dimSnapshotMap[dim] !== null
                 return (
                   <button
