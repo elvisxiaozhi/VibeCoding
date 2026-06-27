@@ -92,6 +92,9 @@
 - ✅ **Step 38 — 写操作反馈 + 网络错误区分**（见 `docs/steps/step-38-report.md`）
 - ✅ **Step 39 — 隐私模式**（见 `docs/steps/step-39-report.md`）
 - ✅ **Step 40 — 数据导出（前端 CSV）**（见 `docs/steps/step-40-report.md`）
+- ✅ **Step 41 — 目标配置 + 偏离再平衡提醒**（见 `docs/steps/step-41-report.md`）
+- ✅ **Step 42 — 设置页全量 JSON 备份导出 / 导入**（见 `docs/steps/step-42-report.md`，commit 10d81e4，已部署）
+- ✅ **Step 43 — 基准对比（vs 沪深300 / 标普500）**（见 `docs/steps/step-43-report.md`）
 
 ## 红线（必须遵守）
 - **每个 Step 只做 spec 中列出的内容**，禁止提前实现下一 Step 的功能

@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { usePrivacy } from '@/context/PrivacyContext'
+import type { BenchmarkComparison } from '@/lib/benchmark'
 import { formatMoney } from '@/lib/currency'
 import type { AttributionGroupBy, ReturnAttribution, ReturnAttributionItem } from '@/lib/attribution'
 import { groupLabel } from '@/lib/attribution'
@@ -37,6 +38,10 @@ interface PerformancePanelProps {
   historicalRatesLoading: boolean
   summaries: PerformanceSummary[]
   onSymbolClick?: (symbol: string) => void
+  /** 人民币本位年化（组合 XIRR），用于 vs 基准对照 */
+  portfolioReturn: number | null
+  benchmarks: BenchmarkComparison[]
+  benchmarksLoading: boolean
 }
 
 const GROUP_OPTIONS: AttributionGroupBy[] = ['asset', 'category', 'currency', 'market']
@@ -114,6 +119,9 @@ export function PerformancePanel({
   historicalRatesLoading,
   summaries,
   onSymbolClick,
+  portfolioReturn,
+  benchmarks,
+  benchmarksLoading,
 }: PerformancePanelProps) {
   const { mask } = usePrivacy()
   const [groupBy, setGroupBy] = useState<AttributionGroupBy>('asset')
@@ -191,6 +199,49 @@ export function PerformancePanel({
             icon={BarChart3}
           />
         </div>
+
+        {portfolioReturn !== null && benchmarks.length > 0 ? (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-medium text-white">vs 基准</h3>
+              <span className="text-xs text-muted-foreground">
+                {benchmarksLoading ? '基准数据加载中' : '同现金流时点对照年化'}
+              </span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                <p className="text-xs text-muted-foreground">本组合</p>
+                <p className={cn('mt-1 font-mono text-lg font-semibold', amountClass(portfolioReturn))}>
+                  {formatPercent(portfolioReturn)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">人民币本位年化</p>
+              </div>
+              {benchmarks.map((b) => {
+                const excess = b.value === null ? null : portfolioReturn - b.value
+                return (
+                  <div key={b.symbol} className="rounded-lg border border-border/30 bg-background/30 p-3">
+                    <p className="text-xs text-muted-foreground">{b.label}</p>
+                    <p
+                      className={cn(
+                        'mt-1 font-mono text-lg font-semibold',
+                        b.value === null ? 'text-muted-foreground' : amountClass(b.value),
+                      )}
+                    >
+                      {b.value === null ? '—' : formatPercent(b.value)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {excess === null ? (
+                        benchmarksLoading ? '加载中' : '暂无数据'
+                      ) : (
+                        <>超额 <span className={amountClass(excess)}>{formatPercent(excess)}</span></>
+                      )}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        ) : null}
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">

@@ -108,6 +108,29 @@ export interface Asset {
   updatedAt: string
 }
 
+// 基准指数：后端 /api/benchmark-prices 只存日线收盘价（指数原币），
+// currency 用于前端把指数价折算成 CNY（沪深300=CNY 直通，标普500=USD 走历史汇率）。
+export interface BenchmarkPrice {
+  date: string
+  close: number
+}
+
+export interface BenchmarkSeries {
+  symbol: string
+  prices: BenchmarkPrice[]
+}
+
+export interface BenchmarkDef {
+  symbol: string
+  label: string
+  currency: CurrencyCode
+}
+
+export const BENCHMARKS: BenchmarkDef[] = [
+  { symbol: '000300', label: '沪深300', currency: 'CNY' },
+  { symbol: 'SPX', label: '标普500', currency: 'USD' },
+]
+
 export type LiabilityCategory = 'mortgage' | 'credit_card' | 'loan' | 'other'
 
 export const LIABILITY_CATEGORY_LABELS: Record<LiabilityCategory, string> = {

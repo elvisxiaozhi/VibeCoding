@@ -87,6 +87,9 @@ func main() {
 	portfolioSnapshotsHandler := &handler.PortfolioSnapshots{Store: s}
 	portfolioSnapshotsHandler.RegisterRoutes(mux)
 
+	benchmarksHandler := &handler.Benchmarks{Store: s}
+	benchmarksHandler.RegisterRoutes(mux)
+
 	priceRefreshHandler := &handler.PriceRefresh{Store: s}
 	priceRefreshHandler.RegisterRoutes(mux)
 
