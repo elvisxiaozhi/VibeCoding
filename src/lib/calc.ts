@@ -100,7 +100,7 @@ export function annualizedReturnIfReady(asset: Asset, minDays = MIN_ANNUALIZED_H
 }
 
 /** 单笔现金流 */
-interface Cashflow {
+export interface Cashflow {
   amount: number  // 负 = 流出（买入），正 = 流入（卖出/分红/当前市值）
   date: Date
 }
@@ -134,6 +134,7 @@ export function xirrRate(cashflows: Cashflow[], guess = 0.1): number {
     return sum
   }
 
+  // 1) Newton-Raphson 快速求解
   let rate = guess
   for (let i = 0; i < 200; i++) {
     const f = npv(rate)
@@ -141,12 +142,42 @@ export function xirrRate(cashflows: Cashflow[], guess = 0.1): number {
     const df = dnpv(rate)
     if (Math.abs(df) < 1e-12) break
     let next = rate - f / df
-    // 防止发散
-    if (next < -0.99) next = (rate - 0.99) / 2
-    if (next > 10) next = (rate + 10) / 2
+    // 防止发散（r 必须 > -1，且需能逼近接近 -100% 的极端亏损根）
+    if (next < -0.999999) next = (rate - 0.999999) / 2
+    if (next > 1e6) next = (rate + 1e6) / 2
     rate = next
   }
-  return rate
+
+  // 2) Newton 未收敛（震荡 / 落在伪根）：在 (-1, +∞) 上扫描变号区间做二分兜底。
+  //    下界贴近 -1 以覆盖「短期重亏被年化到接近 -100%」的真实根；
+  //    递增步长覆盖到极大正收益，取最低端的第一个变号区间（经济意义上的根）。
+  const lowEdge = -0.999999
+  let prevR = lowEdge
+  let prevF = npv(prevR)
+  for (let step = 1; step <= 200; step++) {
+    const r = lowEdge + (Math.pow(1.1, step) - 1)
+    const f = npv(r)
+    if (Number.isFinite(prevF) && Number.isFinite(f) && prevF * f < 0) {
+      let lo = prevR
+      let hi = r
+      let flo = prevF
+      for (let i = 0; i < 100; i++) {
+        const mid = (lo + hi) / 2
+        const fmid = npv(mid)
+        if (Math.abs(fmid) < 1e-7 || hi - lo < 1e-9) return mid
+        if (flo * fmid < 0) hi = mid
+        else { lo = mid; flo = fmid }
+      }
+      return (lo + hi) / 2
+    }
+    prevR = r
+    prevF = f
+    if (r > 1e6) break
+  }
+
+  // 3) 现金流无解（如全部同号、无对应流出的孤儿流入）→ 返回 NaN，由调用方兜底，
+  //    避免静默返回 Newton 的最后一个发散迭代值（历史上会显示成 +1000% 之类的假数字）。
+  return NaN
 }
 
 function validDate(value: string): Date | null {
@@ -204,32 +235,50 @@ export type FXRateLookup = (currency: string, date: Date) => number
  * 这样持有期内的汇率波动也作为收益的一部分。getRate 由调用方注入；缺省 1 等价于
  * 「假设所有币种 = CNY」，仅用于无外汇环境的兜底。
  */
-export function holdingsXIRR(
+/** 组合现金流构建结果：非期末现金流 + 当前总市值（期末流入）拆开返回 */
+export interface HoldingsCashflows {
+  /** 买入流出（负）、分红 / 卖出流入（正），不含期末市值 */
+  contributions: Cashflow[]
+  /** 当前总市值（CNY），作为期末资金流入；0 表示无活跃持仓 */
+  terminalValueCNY: number
+  /** 期末日期（今天） */
+  terminalDate: Date
+}
+
+/**
+ * 构建组合的 CNY 现金流（XIRR 与基准对照共用同一套规则，避免口径漂移）。
+ * 把"当前总市值"这一期末流入单独拎出来，便于基准对照把它替换成
+ * 「同样的钱按同样时点投进指数后值多少」。规则见 holdingsXIRR 注释。
+ */
+export function buildHoldingsCashflows(
   buyLots: Asset[],
   divRecords: Asset[] = [],
   consumedRecords: Asset[] = [],
   sellRecords: Asset[] = [],
   getRate: FXRateLookup = () => 1,
-): number {
+): HoldingsCashflows {
   const eligible = (a: Asset) => a.category !== 'gold'
   buyLots = buyLots.filter(eligible)
   divRecords = divRecords.filter(eligible)
   consumedRecords = consumedRecords.filter(eligible)
   sellRecords = sellRecords.filter(eligible)
 
-  if (buyLots.length === 0 && consumedRecords.length === 0) return 0
+  const today = new Date()
+  if (buyLots.length === 0 && consumedRecords.length === 0) {
+    return { contributions: [], terminalValueCNY: 0, terminalDate: today }
+  }
 
   const validConsumed = consumedRecords.filter((a) => (a.lotQty ?? 0) > 0)
   const includeHistorical = validConsumed.length > 0
 
-  const cashflows: Cashflow[] = []
+  const contributions: Cashflow[] = []
 
   // 活跃持仓买入 = 资金流出（负），按买入日汇率换算
   for (const a of buyLots) {
     const date = new Date(a.purchasedAt)
     const rate = getRate(a.currency, date)
     if (rate <= 0) continue
-    cashflows.push({
+    contributions.push({
       amount: -costValue(a) * rate,
       date,
     })
@@ -242,7 +291,7 @@ export function holdingsXIRR(
     const date = new Date(a.purchasedAt)
     const rate = getRate(a.currency, date)
     if (rate <= 0) continue
-    cashflows.push({
+    contributions.push({
       amount: div * rate,
       date,
     })
@@ -255,7 +304,7 @@ export function holdingsXIRR(
       const date = new Date(a.purchasedAt)
       const rate = getRate(a.currency, date)
       if (rate <= 0) continue
-      cashflows.push({
+      contributions.push({
         amount: -(a.costBasis * origQty * contractMultiplier(a)) * rate,
         date,
       })
@@ -264,7 +313,7 @@ export function holdingsXIRR(
       const date = new Date(a.purchasedAt)
       const rate = getRate(a.currency, date)
       if (rate <= 0) continue
-      cashflows.push({
+      contributions.push({
         amount: a.currentPrice * Math.abs(a.quantity) * contractMultiplier(a) * rate,
         date,
       })
@@ -272,22 +321,34 @@ export function holdingsXIRR(
   }
 
   // 当前总市值 = 资金流入（正），日期为今天，用今日汇率换算
-  const today = new Date()
   let totalMV_CNY = 0
   for (const a of buyLots) {
     const rate = getRate(a.currency, today)
     if (rate <= 0) continue
     totalMV_CNY += marketValue(a) * rate
   }
-  if (totalMV_CNY > 0) {
-    cashflows.push({
-      amount: totalMV_CNY,
-      date: today,
-    })
-  }
 
+  return { contributions, terminalValueCNY: totalMV_CNY, terminalDate: today }
+}
+
+export function holdingsXIRR(
+  buyLots: Asset[],
+  divRecords: Asset[] = [],
+  consumedRecords: Asset[] = [],
+  sellRecords: Asset[] = [],
+  getRate: FXRateLookup = () => 1,
+): number {
+  const { contributions, terminalValueCNY, terminalDate } = buildHoldingsCashflows(
+    buyLots, divRecords, consumedRecords, sellRecords, getRate,
+  )
+  const cashflows = [...contributions]
+  if (terminalValueCNY > 0) {
+    cashflows.push({ amount: terminalValueCNY, date: terminalDate })
+  }
   if (cashflows.length < 2) return 0
-  return xirrRate(cashflows)
+  const rate = xirrRate(cashflows)
+  // xirrRate 无解时返回 NaN；此处兜底为 0，避免 NaN 透传到展示层
+  return Number.isFinite(rate) ? rate : 0
 }
 
 /** 组合年化收益率 — XIRR（含分红） */

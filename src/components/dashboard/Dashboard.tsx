@@ -14,6 +14,9 @@ import { type ReactNode, useRef, useState } from 'react'
 
 import { AssetDetailSheet } from '@/components/dashboard/AssetDetailSheet'
 import { AssetStructurePanel } from '@/components/dashboard/AssetStructurePanel'
+import { RebalancePanel } from '@/components/dashboard/RebalancePanel'
+import { ContributionPanel } from '@/components/dashboard/ContributionPanel'
+import { DashboardAlertBar } from '@/components/dashboard/DashboardAlertBar'
 import { DividendIncomePanel } from '@/components/dashboard/DividendIncomePanel'
 import { FireGoalPanel } from '@/components/dashboard/FireGoalPanel'
 import { PerformancePanel, type PerformanceSummary } from '@/components/dashboard/PerformancePanel'
@@ -26,12 +29,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAssets } from '@/hooks/useAssets'
 import { useExchangeRates } from '@/hooks/useExchangeRates'
 import { useHistoricalRates } from '@/hooks/useHistoricalRates'
+import { useBenchmarkPrices } from '@/hooks/useBenchmarkPrices'
 import { useLiabilities } from '@/hooks/useLiabilities'
 import { usePriceRefresh } from '@/hooks/usePriceRefresh'
 import { usePortfolioSnapshots } from '@/hooks/usePortfolioSnapshots'
 import { usePanelOrder, PANEL_LABELS, type PanelId } from '@/hooks/usePanelOrder'
+import { collectDashboardAlerts } from '@/lib/alerts'
 import { calculateReturnAttribution } from '@/lib/attribution'
-import { contractMultiplier, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalPnLValue, xirrRate } from '@/lib/calc'
+import { calcContributionBreakdown } from '@/lib/contributions'
+import { buildHoldingsCashflows, contractMultiplier, costValue, dividendValue, hasMinimumAnnualizedHistory, holdingsXIRR, marketValue, totalCostValue, totalPnLValue } from '@/lib/calc'
+import { computeBenchmarkReturns } from '@/lib/benchmark'
 import { usePrivacy } from '@/context/PrivacyContext'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { formatCompactMoney, formatMoney, toCNY } from '@/lib/currency'
@@ -102,9 +109,14 @@ function optionPnL(asset: Asset): number {
   return marketValue(asset) - costValue(asset)
 }
 
-function compoundAnnualized(rate: number, days: number): number | null {
-  if (days <= 0 || rate <= -1) return null
-  return Math.pow(1 + rate, 365 / days) - 1
+/**
+ * 简单年化（线性 ×365/天），期权专用。
+ * 期权持有期短，复利年化会把短期波动指数放大（如 17 天 +20% → +5170%）；
+ * 市面期权卖方（CSP / wheel）口径统一用简单年化，故此处不用 CAGR。
+ */
+function simpleAnnualized(rate: number, days: number): number | null {
+  if (days <= 0) return null
+  return rate * 365 / days
 }
 
 function DashboardSkeleton() {
@@ -158,6 +170,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     return true
   })
   const { getRate: getHistRate, loading: histLoading } = useHistoricalRates(dashboardAssets)
+  const { getSeries: getBenchmarkSeries, loading: benchmarkLoading } = useBenchmarkPrices(isLoggedIn)
   const {
     statuses: priceRefreshStatuses,
     loading: priceRefreshLoading,
@@ -214,6 +227,15 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     ? null
     : holdingsXIRR(coreHoldings, coreDivRecords, coreConsumedRecords, coreSellRecords, getHistRate)
   const annVariant = annReturn !== null && annReturn >= 0 ? 'profit' : 'loss'
+  // 基准对照：用与人民币本位年化完全相同的核心现金流，跑「同时点投进沪深300/标普500」的对照 XIRR
+  const benchmarkComparisons = annReturn === null
+    ? []
+    : computeBenchmarkReturns(
+      buildHoldingsCashflows(coreHoldings, coreDivRecords, coreConsumedRecords, coreSellRecords, getHistRate).contributions,
+      new Date(),
+      getBenchmarkSeries,
+      getHistRate,
+    )
   const currencyAnnualizedReturns: CurrencyAnnualizedReturn[] = (() => {
     const currencies = new Set(
       coreHoldings.map((asset) => asset.currency),
@@ -250,25 +272,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   }, 0)
   const optionTotalPnLCNY = optionFloatingPnLCNY + optionRealizedPnLCNY
   const optionPnLRate = optionPremiumCNY === 0 ? null : optionTotalPnLCNY / optionPremiumCNY
-  const optionShortAnnualized = optionRecords.length === 0 || histLoading
-    ? null
-    : xirrRate(optionHoldings.flatMap((asset) => {
-      const openedAt = new Date(asset.purchasedAt)
-      const today = new Date()
-      const openRate = getHistRate(asset.currency, openedAt)
-      const todayRate = getHistRate(asset.currency, today)
-      if (openRate <= 0 || todayRate <= 0) return []
-      if (asset.quantity < 0) {
-        return [
-          { amount: optionPremium(asset) * openRate, date: openedAt },
-          { amount: -optionCloseCost(asset) * todayRate, date: today },
-        ]
-      }
-      return [
-        { amount: -optionPremium(asset) * openRate, date: openedAt },
-        { amount: optionCloseCost(asset) * todayRate, date: today },
-      ]
-    }))
+  // 期权浮动收益率（占权利金）：optionPnL 已按方向修正，空头为「权利金 - 平仓成本」，盈利为正
+  const optionFloatingRate = optionPremiumCNY === 0 ? null : optionFloatingPnLCNY / optionPremiumCNY
   const optionPremiumUSD = optionHoldings.reduce((sum, asset) => sum + toUSD(optionPremium(asset), asset.currency, rates), 0)
   const optionPnLUSD = optionHoldings.reduce((sum, asset) => sum + toUSD(optionPnL(asset), asset.currency, rates), 0)
   const optionMarginUSD = optionHoldings.reduce((sum, asset) => sum + (asset.margin ?? 0), 0)
@@ -281,8 +286,12 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
   const optionHeldDays = optionOpenedAt
     ? Math.max(Math.floor((Date.now() - new Date(optionOpenedAt).getTime()) / 86400000), 1)
     : null
+  // 期权年化：简单年化（线性 ×365/天），口径对齐市面期权卖方，正=盈利
+  const optionShortAnnualized = optionFloatingRate === null || optionHeldDays === null
+    ? null
+    : simpleAnnualized(optionFloatingRate, optionHeldDays)
   const optionMarginAnnualized = optionMarginReturn !== null && optionHeldDays !== null
-    ? compoundAnnualized(optionMarginReturn, optionHeldDays)
+    ? simpleAnnualized(optionMarginReturn, optionHeldDays)
     : null
   const nextOptionExpiry = optionHoldings
     .map((asset) => asset.expiryDate)
@@ -292,7 +301,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
     ? Math.ceil((new Date(nextOptionExpiry).getTime() - Date.now()) / 86400000)
     : null
   const optionMaxMarginAnnualized = optionMaxMarginReturn !== null && optionOpenedAt && nextOptionExpiry
-    ? compoundAnnualized(optionMaxMarginReturn, Math.max(Math.ceil((new Date(nextOptionExpiry).getTime() - new Date(optionOpenedAt).getTime()) / 86400000), 1))
+    ? simpleAnnualized(optionMaxMarginReturn, Math.max(Math.ceil((new Date(nextOptionExpiry).getTime() - new Date(optionOpenedAt).getTime()) / 86400000), 1))
     : null
 
   // 按 symbol 汇总持仓（用于排行榜）
@@ -329,6 +338,17 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   const riskExposure = calculateRiskExposure(holdings, rates, totalValueCNY)
   const returnAttribution = calculateReturnAttribution(holdings, divRecords, sellRecords, rates, getHistRate)
+
+  const dashboardAlerts = collectDashboardAlerts({
+    optionHoldings,
+    liabilities,
+    priceRefreshStatuses,
+    risk: riskExposure,
+  })
+
+  const contributionMonth = calcContributionBreakdown('month', dashboardAssets, snapshots, rates, totalValueCNY, totalDivCNY)
+  const contributionYear = calcContributionBreakdown('year', dashboardAssets, snapshots, rates, totalValueCNY, totalDivCNY)
+  const contributionInception = calcContributionBreakdown('inception', dashboardAssets, snapshots, rates, totalValueCNY, totalDivCNY)
 
   // 多维度涨跌对比：快照存全量资产，这里也用全量 assets 保持口径一致
   const allHoldingsValueCNY = assets.filter((a) => a.quantity > 0).reduce((s, a) => s + assetMVInCNY(a, rates), 0)
@@ -408,6 +428,13 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
 
   const panelMap: Record<PanelId, ReactNode> = {
     fire: <FireGoalPanel netWorthCNY={netWorthCNY} annReturn={annReturn} />,
+    contribution: (
+      <ContributionPanel
+        month={contributionMonth}
+        year={contributionYear}
+        inception={contributionInception}
+      />
+    ),
     currency_ann: (
       <div className="rounded-xl border border-border/50 bg-card px-4 py-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
@@ -469,7 +496,7 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
             <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
               <span>{optionPnLRate === null ? '收益率 —' : formatPercent(optionPnLRate)}</span>
               {optionShortAnnualized !== null && (
-                <span>· XIRR {formatPercent(optionShortAnnualized)}</span>
+                <span>· 年化 {formatPercent(optionShortAnnualized)}</span>
               )}
             </div>
           </div>
@@ -539,12 +566,22 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
         />
       </div>
     ),
+    rebalance: (
+      <RebalancePanel
+        holdings={holdings}
+        totalValueCNY={totalValueCNY}
+        assetValueCNY={(asset) => assetMVInCNY(asset, rates)}
+      />
+    ),
     performance: (
       <PerformancePanel
         attribution={returnAttribution}
         historicalRatesLoading={histLoading}
         summaries={symbolSummaries}
         onSymbolClick={setDetailSymbol}
+        portfolioReturn={annReturn}
+        benchmarks={benchmarkComparisons}
+        benchmarksLoading={benchmarkLoading}
       />
     ),
     risk: <RiskExposurePanel risk={riskExposure} />,
@@ -604,6 +641,8 @@ export function Dashboard({ isLoggedIn, ownerFilter }: DashboardProps) {
           <span>当前为演示模式，登录后管理您的资产</span>
         </div>
       )}
+
+      <DashboardAlertBar alerts={dashboardAlerts} />
 
       <PriceRefreshCenter
         statuses={priceRefreshStatuses}
